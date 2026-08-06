@@ -1,0 +1,21 @@
+{
+  "name": "ui",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:eslint": "eslint . --max-warnings 0",
+    "lint:oxlint": "oxlint . --react-plugin",
+    "lint:ci": "npm run lint:eslint && npm run lint:oxlint"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9",
+    "eslint": "^9",
+    "globals": "^16",
+    "oxlint": "^1",
+    "typescript": "^5.9"
+  }
+}

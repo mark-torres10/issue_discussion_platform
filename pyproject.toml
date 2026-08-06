@@ -8,6 +8,59 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "complexipy>=5.1.0",
+    "pre-commit>=4.2.0",
     "pytest>=8.0.0",
+    "pyright>=1.1.400",
     "ruff>=0.12.0",
 ]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+exclude = [
+    ".agents",
+    ".cursor",
+    ".git",
+    ".venv",
+    "node_modules",
+    "ui/node_modules",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "N",   # pep8-naming
+    "RET", # flake8-return
+    "PT",  # flake8-pytest-style
+]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+include = ["."]
+exclude = [
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.venv",
+    "**/.cursor",
+    "**/.*",
+]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = ["."]
