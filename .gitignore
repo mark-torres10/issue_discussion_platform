@@ -1,0 +1,43 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+*.env
+
+# JavaScript / Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.npm/
+.yarn/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+.turbo/
+.next/
+.nuxt/
+.svelte-kit/
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+*.local
+dist/
+build/
+out/
+.vercel/
+.parcel-cache/
