@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="AI participant avatar">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E8E2D9"/>
+      <stop offset="100%" stop-color="#D6CFC4"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="256" cy="210" r="92" fill="#C4B8A8"/>
+  <ellipse cx="256" cy="410" rx="150" ry="120" fill="#B7AA99"/>
+  <circle cx="256" cy="210" r="70" fill="#EDE6DC"/>
+  <ellipse cx="228" cy="210" rx="8" ry="10" fill="#4A3F35"/>
+  <ellipse cx="284" cy="210" rx="8" ry="10" fill="#4A3F35"/>
+  <path d="M230 248c14 16 38 16 52 0" fill="none" stroke="#6B5E52" stroke-width="8" stroke-linecap="round"/>
+</svg>
