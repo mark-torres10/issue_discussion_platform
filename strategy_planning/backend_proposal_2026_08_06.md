@@ -2,33 +2,57 @@
 
 ## Recommendation
 
-The first version should be a focused FastAPI study backend on Railway that owns session validation, conversation configuration, transcript persistence, completion, and OpenAI Realtime credentials. The frontend on Vercel should never hold the OpenAI API key, never invent study assignment data, and never be the authoritative store for research records.
+The first version should be a FastAPI study backend on Railway. FastAPI is a Python library for building HTTP APIs. Railway should handle session validation, conversation configuration, transcript storage, session completion, and OpenAI Realtime credentials. OpenAI Realtime is OpenAI's live voice and text conversation API.
 
-The backend should expose a small HTTP API that matches the participant journey: open a session, start the conversation, receive final transcript turns, create short lived realtime credentials for voice mode, record connection events, and complete the session. Early phases can return fixed sample data and no-op writes so the frontend can integrate against real routes before OpenAI, Postgres, or LangSmith are wired in.
+The Vercel frontend should not hold the OpenAI API key. It should not invent study assignment data. It should not be the place research records are kept.
 
-Voice should be a mode on the same session, not a separate product surface. Text turns and voice turns share the same transcript model. Railway remains the source of truth for what was said, when the session started and ended, and which study configuration the participant received.
+The backend should expose a small HTTP API that follows the participant journey:
+
+* Open a session.
+* Start the conversation.
+* Receive final transcript turns.
+* Create Realtime credentials that expire quickly, for voice mode.
+* Record connection events.
+* Complete the session.
+
+Early phases can return fixed sample data, and they can accept writes that only update memory. The frontend can then call real routes before OpenAI, Postgres, or LangSmith are added.
+
+Voice should be a mode on the same session. Text turns and voice turns should use the same transcript model. Railway is the source of truth for what was said, when the session started and ended, and which study configuration the participant received.
 
 ## Design principles
 
 ### Keep study control on the server
 
-Railway should own the system instructions, assigned issue, AI position, voice choice, time limits, prompt versions, avatar versions, and allowed tools. The browser should receive only the configuration needed to render the session. A participant must not be able to change the AI position or system instructions through browser requests.
+Keep these fields on Railway:
+
+* System instructions
+* Assigned issue
+* AI position
+* Voice choice
+* Time limits
+* Prompt versions
+* Avatar versions
+* Allowed tools
+
+The browser should receive only the configuration needed to show the session. A participant must not be able to change the AI position or system instructions through browser requests.
 
 ### Prefer small, explicit endpoints
 
-Each endpoint should map to one participant action or one researcher need. Avoid a single chat endpoint that mixes session lifecycle, media credentials, and research logging. Explicit routes make no-op stubs, tests, and later persistence easier to reason about.
+Each endpoint should map to one participant action or one researcher need. Do not put session lifecycle, media credentials, and research logging on one chat endpoint. Small routes are easier to test. They are also easier to return sample data from, and easier to persist later.
 
-### Make persistence idempotent
+### Make writes safe to retry
 
-Participants refresh pages, retry failed saves, and reconnect after network drops. Creating a turn, reporting a connection event, or completing a session should be safe to retry. Stable IDs and upsert semantics matter more than clever request reduction.
+Participants refresh pages, retry failed saves, and reconnect after network drops. Creating a turn should be safe to retry. Reporting a connection event should be safe to retry. Completing a session should be safe to retry.
+
+Use stable IDs. If a turn with the same `turn_id` already exists, update it instead of inserting a second copy. Writes that are safe to retry are more important than fewer requests.
 
 ### Separate temporary UI state from research records
 
-Partial transcriptions, input levels, and local timers belong in the browser. Railway should save final turns with stable turn IDs, speaker labels, timestamps, and ordering. LangSmith should receive approved trace data, not become the only copy of the study record.
+Keep partial transcriptions, input levels, and local timers in the browser. Save final turns on Railway with stable turn IDs, speaker labels, timestamps, and ordering. Send approved trace data to LangSmith. Do not treat LangSmith as the only copy of the study record.
 
 ### Protect secrets and participant data
 
-The OpenAI API key stays on Railway. Short lived Realtime client secrets should be scoped to one configured session. Audio check audio should not be uploaded. Raw conversation audio recording should remain off until consent, retention, encryption, and deletion rules are approved.
+Keep the OpenAI API key on Railway. A Realtime client secret should expire quickly, and it should apply to one configured session only. Do not upload audio from the audio check. Do not record raw conversation audio yet. Record it only after the study team approves consent, retention, encryption, and deletion rules.
 
 ## Participant journey mapped to the API
 
@@ -40,15 +64,15 @@ The participant follows a unique study link. The frontend calls the backend to v
 GET /v1/sessions/{session_id}
 ```
 
-For the backend prototype, this can return fixed sample session data for known IDs and a clear unavailable response for everything else.
+For the backend prototype, known IDs can return fixed sample session data. Unknown IDs should return a clear unavailable response.
 
 ### 2. Read the introduction
 
-No separate endpoint is required. The introduction page uses the session payload from step 1.
+The introduction page does not need its own endpoint. It uses the session payload from step 1.
 
 ### 3. Meet the AI participant
 
-The AI display name, avatar URL, short introduction, and assigned position come from the same session payload. The public response must not include the full system prompt.
+The same session payload includes the AI display name, avatar URL, short introduction, and assigned position. The public response must not include the full system prompt.
 
 ### 4. Check audio
 
@@ -60,13 +84,13 @@ PATCH /v1/sessions/{session_id}
 
 ### 5. Start the discussion
 
-When the participant enters the conversation screen, the frontend starts or resumes the session. The backend records the start timestamp, marks the session active, and returns the opening AI message configuration if the protocol requires the AI to speak first.
+When the participant enters the conversation screen, the frontend starts or resumes the session. The backend should record the start timestamp and mark the session active. If the protocol requires the AI to speak first, the response should include the opening AI message configuration.
 
 ```http
 POST /v1/sessions/{session_id}/start
 ```
 
-For voice mode, the frontend then requests a short lived OpenAI Realtime client secret.
+For voice mode, the frontend then requests an OpenAI Realtime client secret that expires quickly.
 
 ```http
 POST /v1/sessions/{session_id}/realtime/session
@@ -74,7 +98,7 @@ POST /v1/sessions/{session_id}/realtime/session
 
 ### 6. Continue the discussion
 
-Final participant and AI turns are saved as they become stable. Connection and mode changes are recorded as events. Partial voice transcripts stay local until finalized.
+Save final participant and AI turns when the text is stable. Record connection changes and mode changes as events. Keep partial voice transcripts in the browser until they are final.
 
 ```http
 POST /v1/sessions/{session_id}/turns
@@ -82,7 +106,7 @@ POST /v1/sessions/{session_id}/events
 GET  /v1/sessions/{session_id}/transcript
 ```
 
-Text mode can also use a message endpoint that accepts a participant message and returns a stubbed or later real AI reply. Voice mode uses OpenAI Realtime in the browser and posts final turns back to Railway.
+Text mode can also use a message endpoint that accepts a participant message and returns a sample AI reply, and later a real AI reply. Voice mode uses OpenAI Realtime in the browser and posts final turns back to Railway.
 
 ```http
 POST /v1/sessions/{session_id}/messages
@@ -90,7 +114,7 @@ POST /v1/sessions/{session_id}/messages
 
 ### 7. End the discussion
 
-The participant can end early, or the backend can mark the session ready for closing when the assigned time expires. Completion should ask for confirmation in the UI, then call a dedicated complete endpoint.
+The participant can end early. The backend can also mark the session ready for closing when the assigned time expires. The UI should ask for confirmation, then call a dedicated complete endpoint.
 
 ```http
 POST /v1/sessions/{session_id}/complete
@@ -104,25 +128,25 @@ The completion page reads the final session status and next study instruction fr
 GET /v1/sessions/{session_id}
 ```
 
-## API surface
+## HTTP routes
 
-All routes use a `/v1` prefix. Responses use JSON. Errors use a consistent problem shape.
+All routes use a `/v1` prefix. Responses are JSON. Errors use one shared error shape.
 
 ### Health
 
 | Method | Path | Purpose | Phase 1 behavior |
 | --- | --- | --- | --- |
-| `GET` | `/health` | Liveness for Railway and local checks | Return `{ "status": "ok" }` |
-| `GET` | `/ready` | Readiness once dependencies exist | Return ok even if DB and OpenAI are not wired yet |
+| `GET` | `/health` | Show that the process is running, for Railway and local checks | Return `{ "status": "ok" }` |
+| `GET` | `/ready` | Show that the app can take traffic once dependencies exist | Return ok even if DB and OpenAI are not added yet |
 
 ### Sessions
 
 | Method | Path | Purpose | Phase 1 behavior |
 | --- | --- | --- | --- |
 | `GET` | `/v1/sessions/{session_id}` | Load session config and status for the participant UI | Return sample session or `404` / `410` unavailable |
-| `PATCH` | `/v1/sessions/{session_id}` | Update allowed participant preferences such as mode | Accept body, mutate in-memory sample, return updated session |
-| `POST` | `/v1/sessions/{session_id}/start` | Mark session started and return opening state | Set status to `active`, return opening AI turn stub |
-| `POST` | `/v1/sessions/{session_id}/complete` | Idempotently complete the session | Set status to `completed`, return next instruction |
+| `PATCH` | `/v1/sessions/{session_id}` | Update allowed participant preferences such as mode | Accept body, update the in-memory sample, return updated session |
+| `POST` | `/v1/sessions/{session_id}/start` | Mark session started and return opening state | Set status to `active`, return opening AI turn sample |
+| `POST` | `/v1/sessions/{session_id}/complete` | Complete the session in a way that is safe to retry | Set status to `completed`, return next instruction |
 | `GET` | `/v1/sessions/{session_id}/transcript` | Fetch ordered final turns | Return scripted sample transcript |
 
 ### Conversation
@@ -130,19 +154,24 @@ All routes use a `/v1` prefix. Responses use JSON. Errors use a consistent probl
 | Method | Path | Purpose | Phase 1 behavior |
 | --- | --- | --- | --- |
 | `POST` | `/v1/sessions/{session_id}/messages` | Accept a text turn and return an AI reply | Append both turns in memory; return a scripted AI reply |
-| `POST` | `/v1/sessions/{session_id}/turns` | Upsert one or more final transcript turns | Accept payload, store in memory, ignore duplicates by `turn_id` |
+| `POST` | `/v1/sessions/{session_id}/turns` | Create or update one or more final transcript turns | Accept payload, store in memory, update an existing turn when `turn_id` matches |
 | `POST` | `/v1/sessions/{session_id}/events` | Record connection, mode, mute, interrupt, and error events | Accept payload and acknowledge without durable storage |
 
 ### Realtime voice
 
 | Method | Path | Purpose | Phase 1 behavior |
 | --- | --- | --- | --- |
-| `POST` | `/v1/sessions/{session_id}/realtime/session` | Create a short lived OpenAI Realtime client secret | Return a clearly fake stub secret and expires_at, or `501` until Phase 3 |
-| `POST` | `/v1/sessions/{session_id}/realtime/refresh` | Rotate the client secret for an active session | Same no-op stub behavior as create |
+| `POST` | `/v1/sessions/{session_id}/realtime/session` | Create an OpenAI Realtime client secret that expires quickly | Return a fake secret and expires_at, or `501` until Phase 3 |
+| `POST` | `/v1/sessions/{session_id}/realtime/refresh` | Rotate the client secret for an active session | Same sample behavior as create |
 
 ### Internal researcher routes later
 
-Do not expose researcher search or administration on the participant API. A later protected route group can cover study wave setup, session minting, transcript export, and prompt version inspection. Keep that out of the first backend build.
+Do not put researcher search or administration on the participant API. Leave researcher routes out of the first backend build. A later protected route group can cover:
+
+* Study wave setup
+* Session creation
+* Transcript export
+* Prompt version inspection
 
 ```text
 /v1/admin/...   deferred
@@ -150,7 +179,7 @@ Do not expose researcher search or administration on the participant API. A late
 
 ## Data models
 
-Use Pydantic v2 models as the public contract. Even when endpoints are no-ops, request and response bodies should validate. Internal persistence models can diverge later, but the API shapes below should stay stable enough for the Vercel client.
+Use Pydantic v2 models as the public contract. Pydantic is the library FastAPI uses to validate request and response bodies. Even when an endpoint only updates memory, the request and response bodies should still validate. Internal storage models can change later. The API shapes in this section should stay stable enough for the Vercel client.
 
 ### Shared enums and primitives
 
@@ -213,7 +242,7 @@ class SessionEventType(StrEnum):
 
 ### Public session configuration
 
-The participant UI needs enough data to render introduction, avatar, issue, and controls. It must not receive the full system prompt.
+The participant UI needs enough data to show the introduction, avatar, issue, and controls. It must not receive the full system prompt.
 
 ```python
 class IssueConfig(BaseModel):
@@ -260,7 +289,7 @@ class SessionPublic(BaseModel):
 
 ### Internal session configuration
 
-Keep server only fields in a separate model used by Railway services, never returned to the browser.
+Keep server-only fields in a separate model that Railway services use. Never return the internal fields to the browser.
 
 ```python
 class SessionInternal(SessionPublic):
@@ -384,9 +413,10 @@ class RealtimeSessionResponse(BaseModel):
     expires_at: datetime
     realtime_model: str
     voice_name: str | None = None
-    # Never include the full system prompt here if the browser can avoid it.
-    # If OpenAI requires server-side session configuration, configure it on Railway
-    # when minting the secret and return only browser connection fields.
+    # Do not include the full system prompt if the browser can connect without it.
+    # If OpenAI requires session configuration on the server, set that configuration
+    # on Railway when creating the secret, and return only the fields the browser
+    # needs to connect.
 ```
 
 ### Error shape
@@ -414,7 +444,7 @@ Common error codes:
 
 Use FastAPI with Python 3.12+, Pydantic v2, and `uv` for dependency management. Deploy the API service to Railway. Keep OpenAI and LangSmith credentials in Railway environment variables.
 
-A practical source structure would be:
+A useful source layout is:
 
 ```text
 backend/
@@ -455,7 +485,7 @@ backend/
   README.md
 ```
 
-Phase 1 can keep session and transcript state in process memory behind service interfaces. Phase 2 can add Postgres without changing route shapes. Phase 3 can implement OpenAI Realtime minting and LangSmith tracing behind the same service boundaries.
+Phase 1 can keep session and transcript state in process memory, behind functions that the routes call. Phase 2 can add Postgres without changing the route shapes. Phase 3 can create OpenAI Realtime credentials and send LangSmith traces using those same functions.
 
 ## Voice architecture from the backend
 
@@ -464,48 +494,63 @@ The production connection flow should be:
 1. The participant starts voice mode in the Vercel UI.
 2. The UI calls `POST /v1/sessions/{session_id}/start`.
 3. The UI calls `POST /v1/sessions/{session_id}/realtime/session`.
-4. Railway validates the study session and creates a short lived OpenAI client secret for a server configured realtime session.
-5. The browser uses the short lived secret to establish a WebRTC connection with OpenAI.
+4. Railway validates the study session and creates an OpenAI client secret that expires quickly, for a realtime session that Railway configured.
+5. The browser uses the secret to establish a WebRTC connection with OpenAI. WebRTC is the browser API for live audio and data.
 6. The browser sends and receives structured conversation events through the WebRTC data channel.
 7. The UI posts final transcript turns and session events to Railway.
-8. Railway stores the authoritative study record and sends approved trace data to LangSmith.
+8. Railway stores the study record and sends approved trace data to LangSmith.
 
-Railway should configure the realtime session with the assigned instructions, voice, and model. The standard OpenAI API key must stay on Railway. The short lived client secret should be scoped to one configured realtime session.
+Railway should configure the realtime session with the assigned instructions, voice, and model. The standard OpenAI API key must stay on Railway. The client secret that expires quickly should apply to one configured realtime session only.
 
-Do not assume LangSmith stores raw voice recordings. LangSmith can trace model calls, events, and transcript data. Raw audio retention is a separate research and storage decision.
+Do not assume LangSmith stores raw voice recordings. LangSmith can trace model calls, events, and transcript data. Whether to keep raw audio is a separate research and storage decision.
 
 ## Backend prototype phases
 
-### Phase 1. Contract and no-op API
+### Phase 1. Routes and sample data
 
-Build the FastAPI app with health routes, Pydantic models, and all participant endpoints listed above. Use in-memory sample sessions and scripted transcripts. Writes should validate input and update memory, but should not call OpenAI, Postgres, or LangSmith.
+Build the FastAPI app with health routes, Pydantic models, and all participant endpoints listed above. Use in-memory sample sessions and scripted transcripts. Writes should validate input and update memory. Writes should not call OpenAI, Postgres, or LangSmith.
 
 The first review should answer:
 
 * Do the routes cover the UI participant journey?
 * Are the public models enough for the Vercel pages without leaking system prompts?
-* Are turn and completion writes idempotent in the stub?
+* Are turn and completion writes safe to retry in the sample implementation?
 * Can the frontend replace mocks with real HTTP calls against local Railway or `fastapi dev`?
 
 ### Phase 2. Persistence and session rules
 
-Add durable storage for sessions, turns, events, and completion state. Enforce status transitions, resume rules, duplicate turn protection, and unavailable states for expired or completed links.
+Add durable storage for sessions, turns, events, and completion state. Enforce status transitions. Enforce resume rules. Reject duplicate turns. Return unavailable states for expired or completed links.
 
-The phase should include tests for refresh during a session, duplicate complete requests, out of order turn delivery, and opening the same session twice.
+The phase should include tests for:
+
+* Refresh during a session.
+* Duplicate complete requests.
+* Out of order turn delivery.
+* Opening the same session twice.
 
 ### Phase 3. Realtime, OpenAI, and LangSmith
 
-Mint real OpenAI Realtime client secrets from Railway. Persist final voice and text turns. Add reconnect and secret refresh behavior. Send approved traces to LangSmith without making LangSmith the only source of transcript truth.
+Create real OpenAI Realtime client secrets from Railway. Save final voice and text turns. Add reconnect and secret refresh behavior. Send approved traces to LangSmith, and keep the study transcript on Railway as well.
 
 The study team should run pilot sessions across Safari, Chrome, mobile Safari, and common campus network conditions before using the system with participants.
 
 ## Data and research controls
 
-Each saved session should include a server generated session ID, study wave, assigned issue, assigned AI position, prompt version, avatar version, voice version, timestamps, connection events, transcript turns, and completion status.
+Each saved session should include:
+
+* A server generated session ID
+* Study wave
+* Assigned issue
+* Assigned AI position
+* Prompt version, avatar version, and voice version
+* Timestamps
+* Connection events
+* Transcript turns
+* Completion status
 
 Prompt, avatar, and voice versions should be fixed and recorded for each study wave. Changing any of them can change participant behavior, so the researchers need enough version data to identify which participants received each configuration.
 
-The system should define what happens when:
+The study team should define what happens when:
 
 * A participant refreshes the page.
 * A connection drops during an AI response.
@@ -520,10 +565,10 @@ The system should define what happens when:
 Recommended defaults for the first backend implementation:
 
 * Refresh reloads `GET /v1/sessions/{session_id}` and `GET /v1/sessions/{session_id}/transcript`.
-* Duplicate `turn_id` values upsert rather than insert.
+* Duplicate `turn_id` values update the existing turn rather than insert a second copy.
 * Duplicate complete requests return the existing completed session.
-* Two devices may load the same session, but only one active writer should be trusted once persistence exists; Phase 2 should choose an explicit rule.
-* Safety pauses or ends should become session events plus a status change.
+* Two devices may load the same session, but only one active writer should be trusted once persistence exists. Phase 2 should choose an explicit rule.
+* Safety pauses or ends should be stored as session events, and they should change the session status.
 
 ## Decisions needed before production backend work
 
@@ -539,13 +584,34 @@ The study team should decide:
 8. Whether a participant can resume an interrupted session.
 9. What safety rules end or pause a session.
 10. What the completion page should ask the participant to do next.
-11. Whether study links are opaque session IDs, signed tokens, or both.
+11. Whether study links are unguessable session IDs, signed tokens, or both.
 12. How long realtime client secrets should live.
 13. Which transcript fields are exported to LangSmith versus kept only in the study database.
-14. Whether text mode uses Railway mediated model calls or the same OpenAI Realtime path with text only.
+14. Whether text mode sends model calls through Railway, or uses the same OpenAI Realtime path with text only.
 
 ## Initial scope
 
-The first backend build should include the FastAPI app skeleton, health checks, Pydantic request and response models, participant session routes, turn and event write routes, text message route, realtime credential route stubs, in-memory sample data, and basic route tests.
+The first backend build should include:
 
-The first build should exclude Postgres, authentication for researchers, OpenAI calls, LangSmith, raw audio storage, scoring, admin APIs, and generated video. Excluding those systems keeps the first review focused on whether the API contract can support the UI flow and later study requirements.
+* The FastAPI app skeleton
+* Health checks
+* Pydantic request and response models
+* Participant session routes
+* Turn and event write routes
+* The text message route
+* Realtime credential routes that return sample data
+* In-memory sample data
+* Basic route tests
+
+The first build should exclude:
+
+* Postgres
+* Authentication for researchers
+* OpenAI calls
+* LangSmith
+* Raw audio storage
+* Scoring
+* Admin APIs
+* Generated video
+
+The first review should check whether the API contract can support the UI flow and later study requirements.
