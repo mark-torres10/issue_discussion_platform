@@ -1,0 +1,162 @@
+metadata:
+  title: Issue Discussion Study
+  description: >-
+    Participant conversation prototype for a university disagreement skills
+    study.
+
+layout:
+  skipToContent: Skip to content
+  headerBrand: Issue Discussion Study · prototype
+  openSampleSession: Open sample session
+
+home:
+  eyebrow: Research prototype
+  heading: Issue Discussion Study
+  body: >-
+    In the live study, participants open a unique session link. This prototype
+    uses fixed sample data so the team can review the introduction, audio check,
+    discussion, and completion flow.
+  step1: 1. Read the introduction and meet the AI participant.
+  step2: 2. Check microphone and speakers, or continue with text.
+  step3: 3. Hold a short disagreement conversation.
+  step4: 4. Confirm that the session was saved.
+  openSampleSession: Open sample session
+  unavailablePrefix: "Unavailable states: "
+  expiredLinkLabel: expired
+  completedLinkLabel: completed
+  pausedLinkLabel: paused
+
+introduction:
+  eyebrow: Study conversation
+  heading: Before you begin
+  body: >-
+    You will have a short conversation with an AI participant about a contested
+    issue. The discussion usually lasts about {durationMinutes} minutes. You can
+    use voice or text, and you can end the conversation at any time.
+  issueHeading: The issue
+  meetAiHeading: Meet the AI participant
+  assignedPositionLabel: Assigned position
+  noteTranscript: >-
+    The study saves a transcript and the measures approved by the study
+    protocol.
+  noteConsent: Formal consent, if required, remains a separate study step.
+  noteHeadphones: >-
+    Headphones can reduce echo if you choose voice mode on the next screen.
+  continueButton: Continue to audio check
+
+audioCheck:
+  heading: Check your audio
+  body: >-
+    Choose voice or text. Microphone access is requested only after you press
+    the button below. Audio from this check is not saved.
+  modeGroupLabel: Conversation mode
+  voiceLabel: Voice
+  textLabel: Text
+  headphonesHint: >-
+    Headphones can reduce echo. Speak after enabling the microphone to confirm
+    input level.
+  enableMicrophone: Enable microphone
+  inputLevelLabel: Input level
+  micStatusPrefix: "Microphone status: "
+  micReadySuffix: " · ready"
+  playTestSound: Play test sound
+  speakerHeard: "Speaker check: heard"
+  speakerNotConfirmed: "Speaker check: not confirmed yet"
+  textModeHint: >-
+    Text mode uses a message box. You can switch to voice later from the
+    discussion screen if your microphone becomes available.
+  errorTitle: Audio check issue
+  testToneError: >-
+    Could not play a test sound. Check your speakers or continue with text.
+  startDiscussion: Start discussion
+  continueWithText: Continue with text instead
+
+conversation:
+  loading: Loading conversation…
+  almostCompleteTitle: Almost complete
+  almostCompleteBody: >-
+    The conversation is almost complete. You can finish your current thought,
+    then end when you are ready.
+  microphoneIssueTitle: Microphone issue
+  continueWithText: Continue with text
+  captionsHidden: Captions are hidden. Turn them on to read the transcript.
+  endDialogTitle: End this conversation?
+  endDialogDescription: >-
+    Ending now will close the session and save the transcript collected so far.
+  keepTalking: Keep talking
+  endConversationConfirm: End conversation
+  discussionIssueLabel: Discussion issue
+  endConversationButton: End conversation
+  elapsedPrefix: "Elapsed "
+  connected: Connected
+  reconnecting: Reconnecting
+  microphoneOn: Microphone on
+  microphoneMuted: Microphone muted
+  microphone: Microphone
+  micColorHint: Color alone does not show mic state. The label above does.
+  unmute: Unmute
+  mute: Mute
+  stopAiAudio: Stop AI audio
+  switchToText: Switch to text
+  switchToVoice: Switch to voice
+  hideCaptions: Hide captions
+  showCaptions: Show captions
+  reportConnectionProblem: Report connection problem
+  typeYourResponse: Type your response
+  sendMessageAriaLabel: Send message
+  send: Send
+  voiceStateReady: Ready
+  voiceStateListening: Listening
+  voiceStateThinking: Thinking
+  voiceStateSpeaking: Speaking
+  voiceStateMuted: Muted
+  voiceStateReconnecting: Reconnecting
+
+complete:
+  loading: Loading completion…
+  heading: Session complete
+  savedBody: Your session was saved. Thank you for participating.
+  savingBody: >-
+    The session is still saving. Keep this page open while the application
+    retries.
+  timeLimitTitle: Time limit reached
+  timeLimitBody: >-
+    The assigned discussion time ended, so the session closed automatically.
+  saveInProgressTitle: Save still in progress
+  saveInProgressBody: >-
+    Do not close this page. Local session state is preserved while saving
+    retries.
+  savedTitle: Saved
+  savedDescription: >-
+    Transcript and approved study measures for this prototype session are marked
+    saved locally.
+  nextStepLabel: Next step
+  retrySave: Retry save
+
+unavailable:
+  expired:
+    title: This session has expired
+    body: >-
+      The study link is no longer active. Contact the research team if you
+      believe this is a mistake.
+  completed:
+    title: This session is already complete
+    body: >-
+      You have already finished this conversation. Return to the study survey
+      for the next step.
+  paused:
+    title: This session is paused
+    body: >-
+      The research team has temporarily paused this session. Please wait for
+      further instructions.
+  invalid:
+    title: This session is unavailable
+    body: The study link is invalid or cannot be opened right now.
+  backHome: Back to prototype home
+
+notFound:
+  heading: Session not found
+  body: >-
+    This study link is invalid. Check the URL from your study invitation or open
+    the sample session from the prototype home page.
+  backHome: Back to prototype home
