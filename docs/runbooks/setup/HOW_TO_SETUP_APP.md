@@ -20,6 +20,14 @@ cd ui
 npm install
 ```
 
+## Where to edit participant wording
+
+Shared screen text (home, introduction labels, audio check, conversation controls, completion, unavailable) lives in `ui/content/ui-copy.yaml`.
+
+Sample issue text, AI persona, opening line, and scripted replies live in `ui/content/sessions/demo-campus-speech-001.yaml`.
+
+After you edit a YAML file, refresh the running Next.js app to see the new wording. If a required key is missing, the app throws and names the key.
+
 ## Install Python packages
 
 Run `uv sync --group dev` at the repo root so packages from `uv.lock` are in `.venv`. Skip this step if you only want to start the UI.
