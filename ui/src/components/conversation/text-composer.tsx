@@ -4,6 +4,7 @@ import { useState } from "react";
 import { SendHorizonal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useUiCopy } from "@/lib/content/content-provider";
 
 interface TextComposerProps {
   disabled: boolean;
@@ -14,6 +15,7 @@ interface TextComposerProps {
  * Familiar text message box with send button.
  */
 export function TextComposer({ disabled, onSend }: TextComposerProps) {
+  const copy = useUiCopy();
   const [draft, setDraft] = useState("");
 
   function submit() {
@@ -36,8 +38,8 @@ export function TextComposer({ disabled, onSend }: TextComposerProps) {
             submit();
           }
         }}
-        placeholder="Type your response"
-        aria-label="Type your response"
+        placeholder={copy.conversation.typeYourResponse}
+        aria-label={copy.conversation.typeYourResponse}
         disabled={disabled}
         className="min-h-12 resize-none"
         data-testid="text-composer"
@@ -46,11 +48,11 @@ export function TextComposer({ disabled, onSend }: TextComposerProps) {
         type="button"
         onClick={submit}
         disabled={disabled || draft.trim().length === 0}
-        aria-label="Send message"
+        aria-label={copy.conversation.sendMessageAriaLabel}
         data-testid="send-message"
       >
         <SendHorizonal data-icon="inline-start" />
-        Send
+        {copy.conversation.send}
       </Button>
     </div>
   );

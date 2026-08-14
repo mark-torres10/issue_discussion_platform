@@ -10,6 +10,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useUiCopy } from "@/lib/content/content-provider";
 import type { ConversationMode, VoiceUiState } from "@/lib/types/session";
 
 interface VoiceControlsProps {
@@ -44,12 +45,13 @@ export function VoiceControls({
   onReportConnectionProblem,
   onPrimaryMicPress,
 }: VoiceControlsProps) {
+  const copy = useUiCopy();
   const micLabel =
     voiceState === "listening"
-      ? "Microphone on"
+      ? copy.conversation.microphoneOn
       : voiceState === "muted"
-        ? "Microphone muted"
-        : "Microphone";
+        ? copy.conversation.microphoneMuted
+        : copy.conversation.microphone;
 
   return (
     <div className="flex flex-col gap-3 border-t border-black/5 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -82,7 +84,7 @@ export function VoiceControls({
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Color alone does not show mic state. The label above does.
+            {copy.conversation.micColorHint}
           </p>
         </div>
       ) : null}
@@ -102,7 +104,7 @@ export function VoiceControls({
               ) : (
                 <MicOff data-icon="inline-start" />
               )}
-              {isMuted ? "Unmute" : "Mute"}
+              {isMuted ? copy.conversation.unmute : copy.conversation.mute}
             </Button>
             <Button
               type="button"
@@ -113,7 +115,7 @@ export function VoiceControls({
               data-testid="stop-ai-audio"
             >
               <Square data-icon="inline-start" />
-              Stop AI audio
+              {copy.conversation.stopAiAudio}
             </Button>
             <Button
               type="button"
@@ -123,7 +125,7 @@ export function VoiceControls({
               data-testid="switch-to-text"
             >
               <Keyboard data-icon="inline-start" />
-              Switch to text
+              {copy.conversation.switchToText}
             </Button>
           </>
         ) : (
@@ -135,7 +137,7 @@ export function VoiceControls({
             data-testid="switch-to-voice"
           >
             <Mic data-icon="inline-start" />
-            Switch to voice
+            {copy.conversation.switchToVoice}
           </Button>
         )}
         <Button
@@ -150,7 +152,9 @@ export function VoiceControls({
           ) : (
             <Captions data-icon="inline-start" />
           )}
-          {captionsEnabled ? "Hide captions" : "Show captions"}
+          {captionsEnabled
+            ? copy.conversation.hideCaptions
+            : copy.conversation.showCaptions}
         </Button>
         <Button
           type="button"
@@ -160,7 +164,7 @@ export function VoiceControls({
           data-testid="report-connection"
         >
           <TriangleAlert data-icon="inline-start" />
-          Report connection problem
+          {copy.conversation.reportConnectionProblem}
         </Button>
       </div>
     </div>

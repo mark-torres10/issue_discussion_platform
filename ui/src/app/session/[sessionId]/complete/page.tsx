@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import CompletePageClient from "./complete-client";
 import { getStudySession } from "@/lib/api/study-backend";
+import { loadUiCopy } from "@/lib/content/loader";
 
 interface CompletePageProps {
   params: Promise<{ sessionId: string }>;
@@ -14,11 +15,13 @@ export default async function CompletePage({ params }: CompletePageProps) {
     notFound();
   }
 
+  const copy = loadUiCopy();
+
   return (
     <Suspense
       fallback={
         <div className="px-5 py-8 text-sm text-muted-foreground">
-          Loading completion…
+          {copy.complete.loading}
         </div>
       }
     >

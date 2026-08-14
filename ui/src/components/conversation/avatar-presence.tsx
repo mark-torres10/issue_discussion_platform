@@ -2,17 +2,9 @@
 
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
+import { useUiCopy } from "@/lib/content/content-provider";
 import { cn } from "@/lib/utils";
 import type { AiPersona, VoiceUiState } from "@/lib/types/session";
-
-const VOICE_STATE_LABELS: Record<VoiceUiState, string> = {
-  idle: "Ready",
-  listening: "Listening",
-  thinking: "Thinking",
-  speaking: "Speaking",
-  muted: "Muted",
-  reconnecting: "Reconnecting",
-};
 
 interface AvatarPresenceProps {
   persona: AiPersona;
@@ -30,8 +22,17 @@ export function AvatarPresence({
   size = "large",
   showState = false,
 }: AvatarPresenceProps) {
+  const copy = useUiCopy();
   const dimension = size === "large" ? 112 : 64;
   const isSpeaking = voiceState === "speaking";
+  const voiceStateLabels: Record<VoiceUiState, string> = {
+    idle: copy.conversation.voiceStateReady,
+    listening: copy.conversation.voiceStateListening,
+    thinking: copy.conversation.voiceStateThinking,
+    speaking: copy.conversation.voiceStateSpeaking,
+    muted: copy.conversation.voiceStateMuted,
+    reconnecting: copy.conversation.voiceStateReconnecting,
+  };
 
   return (
     <div className="flex items-center gap-4">
@@ -66,7 +67,7 @@ export function AvatarPresence({
             aria-live="polite"
             data-testid="voice-state"
           >
-            {VOICE_STATE_LABELS[voiceState]}
+            {voiceStateLabels[voiceState]}
           </p>
         ) : null}
       </div>
