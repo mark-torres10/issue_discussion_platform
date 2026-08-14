@@ -1,7 +1,19 @@
-import React, { Suspense } from "react";
+import { Suspense } from "react";
+import { notFound } from "next/navigation";
 import CompletePageClient from "./complete-client";
+import { getStudySession } from "@/lib/api/study-backend";
 
-export default function CompletePage() {
+interface CompletePageProps {
+  params: Promise<{ sessionId: string }>;
+}
+
+export default async function CompletePage({ params }: CompletePageProps) {
+  const { sessionId } = await params;
+  const session = getStudySession(sessionId);
+  if (!session) {
+    notFound();
+  }
+
   return (
     <Suspense
       fallback={
@@ -10,7 +22,7 @@ export default function CompletePage() {
         </div>
       }
     >
-      <CompletePageClient />
+      <CompletePageClient session={session} />
     </Suspense>
   );
 }

@@ -1,31 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { AppFrame } from "@/components/session/app-frame";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { getStudySession } from "@/lib/api/study-backend";
 import {
   conversationStorageKey,
   parseConversationSnapshot,
 } from "@/lib/realtime/state";
-import type { ConversationSnapshot } from "@/lib/types/session";
+import type { ConversationSnapshot, StudySession } from "@/lib/types/session";
+
+interface CompletePageClientProps {
+  session: StudySession;
+}
 
 /**
  * Completion confirmation with mocked save status and next-step instruction.
  */
-export default function CompletePageClient() {
-  const params = useParams<{ sessionId: string }>();
+export default function CompletePageClient({
+  session,
+}: CompletePageClientProps) {
   const searchParams = useSearchParams();
-  const sessionId = params.sessionId;
   const reason = searchParams.get("reason");
-  const session = getStudySession(sessionId);
   const [snapshot, setSnapshot] = useState<ConversationSnapshot | null>(() => {
     if (typeof window === "undefined") {
       return null;
     }
-    const raw = sessionStorage.getItem(conversationStorageKey(sessionId));
+    const raw = sessionStorage.getItem(
+      conversationStorageKey(session.sessionId),
+    );
     if (!raw) {
       return null;
     }
@@ -43,7 +47,7 @@ export default function CompletePageClient() {
       saveStatus: "retrying",
     };
     sessionStorage.setItem(
-      conversationStorageKey(sessionId),
+      conversationStorageKey(session.sessionId),
       JSON.stringify(retryingSnapshot),
     );
     setSnapshot(retryingSnapshot);
@@ -54,21 +58,11 @@ export default function CompletePageClient() {
       saveStatus: "saved",
     };
     sessionStorage.setItem(
-      conversationStorageKey(sessionId),
+      conversationStorageKey(session.sessionId),
       JSON.stringify(saved),
     );
     setSnapshot(saved);
     setRetrying(false);
-  }
-
-  if (!session) {
-    return (
-      <AppFrame>
-        <div className="px-5 py-8 text-sm text-muted-foreground">
-          This session link is not available.
-        </div>
-      </AppFrame>
-    );
   }
 
   const saveStatus = snapshot?.saveStatus ?? "saved";
