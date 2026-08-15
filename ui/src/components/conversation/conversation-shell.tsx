@@ -39,6 +39,7 @@ import {
   stopMediaStream,
 } from "@/lib/realtime/microphone";
 import { amplitudeToLevelPercent } from "@/lib/realtime/state";
+import { useUiCopy } from "@/lib/content/content-provider";
 import type {
   ConversationMode,
   ConversationSnapshot,
@@ -61,6 +62,7 @@ interface ConversationShellProps {
  * Interactive discussion surface with mocked backend behavior.
  */
 export function ConversationShell({ session }: ConversationShellProps) {
+  const copy = useUiCopy();
   const router = useRouter();
   const [snapshot, setSnapshot] = useState<ConversationSnapshot | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -434,7 +436,7 @@ export function ConversationShell({ session }: ConversationShellProps) {
   if (!snapshot) {
     return (
       <div className="px-5 py-8 text-sm text-muted-foreground">
-        Loading conversation…
+        {copy.conversation.loading}
       </div>
     );
   }
@@ -463,17 +465,16 @@ export function ConversationShell({ session }: ConversationShellProps) {
 
       {nearEndNoticed ? (
         <Alert className="mx-4 mt-3">
-          <AlertTitle>Almost complete</AlertTitle>
+          <AlertTitle>{copy.conversation.almostCompleteTitle}</AlertTitle>
           <AlertDescription>
-            The conversation is almost complete. You can finish your current
-            thought, then end when you are ready.
+            {copy.conversation.almostCompleteBody}
           </AlertDescription>
         </Alert>
       ) : null}
 
       {errorMessage ? (
         <Alert variant="destructive" className="mx-4 mt-3">
-          <AlertTitle>Microphone issue</AlertTitle>
+          <AlertTitle>{copy.conversation.microphoneIssueTitle}</AlertTitle>
           <AlertDescription>
             {errorMessage}{" "}
             <button
@@ -481,7 +482,7 @@ export function ConversationShell({ session }: ConversationShellProps) {
               className="underline"
               onClick={() => void handleSwitchMode("text")}
             >
-              Continue with text
+              {copy.conversation.continueWithText}
             </button>
           </AlertDescription>
         </Alert>
@@ -494,7 +495,7 @@ export function ConversationShell({ session }: ConversationShellProps) {
         />
       ) : (
         <div className="flex flex-1 items-center justify-center px-4 text-sm text-muted-foreground">
-          Captions are hidden. Turn them on to read the transcript.
+          {copy.conversation.captionsHidden}
         </div>
       )}
 
@@ -547,10 +548,9 @@ export function ConversationShell({ session }: ConversationShellProps) {
       <Dialog open={endDialogOpen} onOpenChange={setEndDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>End this conversation?</DialogTitle>
+            <DialogTitle>{copy.conversation.endDialogTitle}</DialogTitle>
             <DialogDescription>
-              Ending now will close the session and save the transcript collected
-              so far.
+              {copy.conversation.endDialogDescription}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -559,14 +559,14 @@ export function ConversationShell({ session }: ConversationShellProps) {
               variant="outline"
               onClick={() => setEndDialogOpen(false)}
             >
-              Keep talking
+              {copy.conversation.keepTalking}
             </Button>
             <Button
               type="button"
               onClick={() => void completeSession("user_ended")}
               data-testid="confirm-end"
             >
-              End conversation
+              {copy.conversation.endConversationConfirm}
             </Button>
           </DialogFooter>
         </DialogContent>

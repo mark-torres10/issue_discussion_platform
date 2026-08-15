@@ -16,6 +16,13 @@ describe("getStudySession", () => {
     const result = getStudySession("missing-session");
     expect(result).toBeNull();
   });
+
+  it("shares the sample issue title for expired-demo", () => {
+    const sample = getStudySession(SAMPLE_SESSION_ID);
+    const expired = getStudySession("expired-demo");
+    expect(expired?.status).toBe("expired");
+    expect(expired?.issue.title).toBe(sample?.issue.title);
+  });
 });
 
 describe("isSessionAvailable", () => {

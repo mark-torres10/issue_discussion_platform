@@ -14,6 +14,8 @@ Open [http://localhost:3000](http://localhost:3000), then use **Open sample sess
 
 Sample session id: `demo-campus-speech-001`
 
+Participant wording lives in `ui/content/` (`ui-copy.yaml` and `sessions/demo-campus-speech-001.yaml`). See [Where to edit participant wording](../docs/runbooks/setup/HOW_TO_SETUP_APP.md#where-to-edit-participant-wording).
+
 ## Verify
 
 ```bash

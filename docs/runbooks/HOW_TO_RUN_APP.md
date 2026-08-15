@@ -17,6 +17,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Use **Open sample session** to open the sample study session.
 
+To change participant wording without editing React files, use the YAML paths in [Where to edit participant wording](setup/HOW_TO_SETUP_APP.md#where-to-edit-participant-wording).
+
 Sample session id: `demo-campus-speech-001`.
 
 Audio-check preferences and conversation snapshots stay in the browser in `sessionStorage`. `sessionStorage` is a browser store that lasts until you close the tab. Refreshing the same tab keeps the stored preferences and snapshots. A new browser profile has no stored preferences or snapshots.

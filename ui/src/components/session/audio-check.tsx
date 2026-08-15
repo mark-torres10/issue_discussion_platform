@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useUiCopy } from "@/lib/content/content-provider";
 import {
   audioCheckStorageKey,
   type AudioCheckPreferences,
@@ -29,6 +30,7 @@ interface AudioCheckProps {
  * Microphone and speaker check before the discussion begins.
  */
 export function AudioCheck({ sessionId }: AudioCheckProps) {
+  const copy = useUiCopy();
   const router = useRouter();
   const [mode, setMode] = useState<ConversationMode>("voice");
   const [micPermission, setMicPermission] =
@@ -114,9 +116,7 @@ export function AudioCheck({ sessionId }: AudioCheckProps) {
       setSpeakerReady(true);
     } catch {
       setSpeakerReady(false);
-      setErrorMessage(
-        "Could not play a test sound. Check your speakers or continue with text.",
-      );
+      setErrorMessage(copy.audioCheck.testToneError);
     }
   }
 
@@ -141,27 +141,33 @@ export function AudioCheck({ sessionId }: AudioCheckProps) {
   }
 
   const canStartVoice = micReady;
+  const speakerStatus = speakerReady
+    ? copy.audioCheck.speakerHeard
+    : copy.audioCheck.speakerNotConfirmed;
 
   return (
     <div className="flex flex-col gap-6 px-5 py-6 sm:px-7 sm:py-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--ink)]">
-          Check your audio
+          {copy.audioCheck.heading}
         </h1>
         <p className="text-[15px] leading-relaxed text-muted-foreground">
-          Choose voice or text. Microphone access is requested only after you
-          press the button below. Audio from this check is not saved.
+          {copy.audioCheck.body}
         </p>
       </div>
 
-      <div className="flex gap-2" role="group" aria-label="Conversation mode">
+      <div
+        className="flex gap-2"
+        role="group"
+        aria-label={copy.audioCheck.modeGroupLabel}
+      >
         <Button
           type="button"
           variant={mode === "voice" ? "default" : "outline"}
           onClick={() => setMode("voice")}
           data-testid="select-voice"
         >
-          Voice
+          {copy.audioCheck.voiceLabel}
         </Button>
         <Button
           type="button"
@@ -169,26 +175,25 @@ export function AudioCheck({ sessionId }: AudioCheckProps) {
           onClick={() => setMode("text")}
           data-testid="select-text"
         >
-          Text
+          {copy.audioCheck.textLabel}
         </Button>
       </div>
 
       {mode === "voice" ? (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Headphones can reduce echo. Speak after enabling the microphone to
-            confirm input level.
+            {copy.audioCheck.headphonesHint}
           </p>
           <Button
             type="button"
             onClick={() => void handleEnableMicrophone()}
             data-testid="enable-microphone"
           >
-            Enable microphone
+            {copy.audioCheck.enableMicrophone}
           </Button>
           <div className="flex flex-col gap-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Input level
+              {copy.audioCheck.inputLevelLabel}
             </p>
             <div className="h-3 overflow-hidden rounded-full bg-[#E8E2D9]">
               <div
@@ -198,8 +203,9 @@ export function AudioCheck({ sessionId }: AudioCheckProps) {
               />
             </div>
             <p className="text-sm text-muted-foreground" data-testid="mic-status">
-              Microphone status: {micPermission}
-              {micReady ? " · ready" : ""}
+              {copy.audioCheck.micStatusPrefix}
+              {micPermission}
+              {micReady ? copy.audioCheck.micReadySuffix : ""}
             </p>
           </div>
           <Button
@@ -208,22 +214,19 @@ export function AudioCheck({ sessionId }: AudioCheckProps) {
             onClick={() => void handlePlayTestSound()}
             data-testid="play-test-sound"
           >
-            Play test sound
+            {copy.audioCheck.playTestSound}
           </Button>
-          <p className="text-sm text-muted-foreground">
-            Speaker check: {speakerReady ? "heard" : "not confirmed yet"}
-          </p>
+          <p className="text-sm text-muted-foreground">{speakerStatus}</p>
         </div>
       ) : (
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Text mode uses a message box. You can switch to voice later from the
-          discussion screen if your microphone becomes available.
+          {copy.audioCheck.textModeHint}
         </p>
       )}
 
       {errorMessage ? (
         <Alert variant="destructive">
-          <AlertTitle>Audio check issue</AlertTitle>
+          <AlertTitle>{copy.audioCheck.errorTitle}</AlertTitle>
           <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
       ) : null}
@@ -236,7 +239,7 @@ export function AudioCheck({ sessionId }: AudioCheckProps) {
           disabled={mode === "voice" && !canStartVoice}
           data-testid="start-discussion"
         >
-          Start discussion
+          {copy.audioCheck.startDiscussion}
         </Button>
         {mode === "voice" ? (
           <Button
@@ -245,7 +248,7 @@ export function AudioCheck({ sessionId }: AudioCheckProps) {
             onClick={handleContinueWithText}
             data-testid="continue-with-text"
           >
-            Continue with text instead
+            {copy.audioCheck.continueWithText}
           </Button>
         ) : null}
       </div>

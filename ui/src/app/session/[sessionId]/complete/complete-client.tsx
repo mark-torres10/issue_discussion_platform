@@ -1,31 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { AppFrame } from "@/components/session/app-frame";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { getStudySession } from "@/lib/api/study-backend";
+import { useUiCopy } from "@/lib/content/content-provider";
 import {
   conversationStorageKey,
   parseConversationSnapshot,
 } from "@/lib/realtime/state";
-import type { ConversationSnapshot } from "@/lib/types/session";
+import type { ConversationSnapshot, StudySession } from "@/lib/types/session";
+
+interface CompletePageClientProps {
+  session: StudySession;
+}
 
 /**
  * Completion confirmation with mocked save status and next-step instruction.
  */
-export default function CompletePageClient() {
-  const params = useParams<{ sessionId: string }>();
+export default function CompletePageClient({
+  session,
+}: CompletePageClientProps) {
+  const copy = useUiCopy();
   const searchParams = useSearchParams();
-  const sessionId = params.sessionId;
   const reason = searchParams.get("reason");
-  const session = getStudySession(sessionId);
   const [snapshot, setSnapshot] = useState<ConversationSnapshot | null>(() => {
     if (typeof window === "undefined") {
       return null;
     }
-    const raw = sessionStorage.getItem(conversationStorageKey(sessionId));
+    const raw = sessionStorage.getItem(
+      conversationStorageKey(session.sessionId),
+    );
     if (!raw) {
       return null;
     }
@@ -43,7 +49,7 @@ export default function CompletePageClient() {
       saveStatus: "retrying",
     };
     sessionStorage.setItem(
-      conversationStorageKey(sessionId),
+      conversationStorageKey(session.sessionId),
       JSON.stringify(retryingSnapshot),
     );
     setSnapshot(retryingSnapshot);
@@ -54,21 +60,11 @@ export default function CompletePageClient() {
       saveStatus: "saved",
     };
     sessionStorage.setItem(
-      conversationStorageKey(sessionId),
+      conversationStorageKey(session.sessionId),
       JSON.stringify(saved),
     );
     setSnapshot(saved);
     setRetrying(false);
-  }
-
-  if (!session) {
-    return (
-      <AppFrame>
-        <div className="px-5 py-8 text-sm text-muted-foreground">
-          This session link is not available.
-        </div>
-      </AppFrame>
-    );
   }
 
   const saveStatus = snapshot?.saveStatus ?? "saved";
@@ -79,46 +75,37 @@ export default function CompletePageClient() {
       <div className="flex flex-col gap-5 px-5 py-8 sm:px-7">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--ink)]">
-            Session complete
+            {copy.complete.heading}
           </h1>
           <p className="text-[15px] leading-relaxed text-muted-foreground">
-            {saveFailed
-              ? "The session is still saving. Keep this page open while the application retries."
-              : "Your session was saved. Thank you for participating."}
+            {saveFailed ? copy.complete.savingBody : copy.complete.savedBody}
           </p>
         </div>
 
         {reason === "time_expired" ? (
           <Alert>
-            <AlertTitle>Time limit reached</AlertTitle>
-            <AlertDescription>
-              The assigned discussion time ended, so the session closed
-              automatically.
-            </AlertDescription>
+            <AlertTitle>{copy.complete.timeLimitTitle}</AlertTitle>
+            <AlertDescription>{copy.complete.timeLimitBody}</AlertDescription>
           </Alert>
         ) : null}
 
         {saveFailed ? (
           <Alert variant="destructive">
-            <AlertTitle>Save still in progress</AlertTitle>
+            <AlertTitle>{copy.complete.saveInProgressTitle}</AlertTitle>
             <AlertDescription>
-              Do not close this page. Local session state is preserved while
-              saving retries.
+              {copy.complete.saveInProgressBody}
             </AlertDescription>
           </Alert>
         ) : (
           <Alert>
-            <AlertTitle>Saved</AlertTitle>
-            <AlertDescription>
-              Transcript and approved study measures for this prototype session
-              are marked saved locally.
-            </AlertDescription>
+            <AlertTitle>{copy.complete.savedTitle}</AlertTitle>
+            <AlertDescription>{copy.complete.savedDescription}</AlertDescription>
           </Alert>
         )}
 
         <div className="flex flex-col gap-1 rounded-xl bg-[#F7F3EE] px-4 py-4">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Next step
+            {copy.complete.nextStepLabel}
           </p>
           <p className="text-sm leading-relaxed text-[var(--ink)]">
             {session.rules.completionNextStep}
@@ -132,7 +119,7 @@ export default function CompletePageClient() {
             disabled={retrying}
             data-testid="retry-save"
           >
-            Retry save
+            {copy.complete.retrySave}
           </Button>
         ) : null}
       </div>
