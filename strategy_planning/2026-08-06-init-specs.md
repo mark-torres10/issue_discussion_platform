@@ -1,10 +1,20 @@
 # Initial specs
 
-What we want is for our person to be able to have a conversation with an AI agent. I'm thinking that the UI can actually be pretty deliberately simple.
+The person in the study should be able to have a conversation with an AI agent. The UI can stay deliberately simple.
 
-We'll do a UI build first and make it a no-op for now. We'll just get a look at how the interface can look, then we'll introduce the backend and wire everything together, and then we'll have some conversations. I'll then connect this to Langsmith to allow us to track the transcripts and the voices. That should be a three-part build.
+The work is a short three-part build. First, ship a UI look with no live backend. Next, introduce the Study API and wire the conversation. Then connect telemetry so operators can review approved fields from committed records.
 
-UI: Vercel
-Backend: Railway
-AI: OpenAI GPT-live
-Telemetry: LangSmith
+Hosting and services:
+
+* UI on Vercel
+* Study API on Railway
+* Study Postgres as the authoritative store
+* OpenAI Realtime for voice
+* LangSmith for derived telemetry
+* Supabase Auth for staff identity only
+
+The first LangSmith integration records transcript text, voice configuration, interruption state, and approved timing and usage fields. It does not record raw audio. "Voice" means approved configuration and metrics, not raw audio files.
+
+Later proposals define the contracts. Read `ui_proposal_2026_08_06.md` for the participant journey and participant API mapping. Read `supabase_auth_proposal_2026_08_05.md` for staff login. Read the backend and LangSmith proposals for capability cookies, canonical turns, completion, and tracing.
+
+Shared milestones across those documents are Sample contracts, Durable record, Voice control, Approved tracing, and Research export.
