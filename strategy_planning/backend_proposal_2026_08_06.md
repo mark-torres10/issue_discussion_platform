@@ -284,7 +284,7 @@ Staff cookie handling lives in the Auth plan. The Study API verifies the Supabas
 
 Canonical turns are immutable. The Study API assigns canonical order (`ordinal`). Client timestamps are optional evidence, not the canonical order.
 
-Every stored turn includes `origin`, `provider_item_id` when the provider supplied one, `recorded_at`, `content_hash`, and a schema version.
+Every stored turn includes `origin`, `provider_item_id` when the provider supplied one, `recorded_at`, `content_hash`, and a schema version. Derived traces, when exported, should carry `trace_kind` values such as `instrumented_text_generation`, `provider_observed_realtime_response`, and `client_reconstructed_voice_turn`. A client reconstruction is not a complete model call.
 
 ### Who may create which record
 
@@ -411,6 +411,10 @@ Build any trace only from committed canonical records. Do not use the internal `
 LangSmith failure must not fail session completion. Production tracing stays disabled until an approved trace policy version is attached to the session.
 
 If complete export is later required, an outbox is mandatory. The outbox is not part of the default best-effort contract.
+
+An application feature flag selects a no-operation exporter or, later, an outbox worker. Do not assume `LANGSMITH_TRACING=false` disables every SDK path. Direct run posting can still send data.
+
+Operational connection events may use a separate allowlist and sampling rule. Approved transcript traces, when a complete export policy exists, may need full coverage for reconciliation. Cap runs per session, payload size, daily export volume, and failed outbox retention when an outbox exists. Export can be stopped without stopping the Study API.
 
 ## Consent
 
