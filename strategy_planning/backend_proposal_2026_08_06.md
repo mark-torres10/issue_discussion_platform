@@ -135,19 +135,21 @@ The plan chooses one active writer lease with explicit transfer. Other designs e
 
 Lease rules:
 
-* The Study API issues `writer_lease_id` at writer exchange or at start if the exchange did not yet start the session.
+* The Study API issues `writer_lease_id` at writer exchange or at start if the exchange did not yet start the session. The lease lasts 30 minutes from last successful write, and it is renewed on each accepted write.
 * Write commands require a current lease and a matching `expected_version` where listed.
 * A stale writer receives `409 writer_conflict` with `current_version` and no mutation.
-* Transfer is an explicit command from the current writer, or from staff with membership. Transfer moves the lease to a device that already holds a valid read-only capability for the same session.
+* Transfer is `POST /v1/participant-session/writer-lease/transfer`. The current writer posts a one-time transfer nonce that the Study API issued to the read-only device. Staff with membership can also transfer. Transfer moves the lease to a device that already holds a valid read-only capability for the same session.
 * After transfer, the old lease cannot write.
 
 Database tests must run simultaneous start, message, voice ingestion, refresh, and completion requests from separate API instances.
 
 ## Session state
 
-`unavailable` is an API projection, not a persisted session status, unless staff explicitly quarantine a session. Quarantine, if added later, is a separate persisted flag or status. The v1 persisted statuses are `pending`, `active`, `paused`, `completing`, `completed`, and `expired`.
+`unavailable` is an API projection, not a persisted session status, unless staff explicitly quarantine a session. Quarantine, if added later, is a separate persisted flag or status. The v1 persisted statuses are `pending`, `active`, `paused`, `completed`, and `expired`.
 
-A completed session stays readable to the same participant capability for 24 hours after `completed_at`. The completed projection includes status, completion time, and next instruction. Conversation writes and new Realtime setup are blocked after completion. Return `410` only after the grace period or after explicit revocation. A completed session is not projected as unavailable during the grace period.
+`completing` is not a status the UI should poll. The complete command moves `active` or `paused` to `completed` in one transaction. If a crash happens inside that transaction, the session remains `active` or `paused` and the client retries complete.
+
+A completed session stays readable to the same participant capability for 24 hours after `completed_at`. Completion rotates the writer lease so new writes fail, and it keeps a read-only capability on the same cookie until the grace period ends. The completed projection includes status, completion time, and next instruction. Conversation writes and new Realtime setup are blocked after completion. Return `410` only after the grace period or after explicit revocation. A completed session is not projected as unavailable during the grace period.
 
 Each session has a monotonic `version`. Lifecycle writes require `expected_version`.
 
@@ -158,9 +160,8 @@ pending -> active
 pending -> expired
 active -> paused
 paused -> active
-active -> completing
-paused -> completing
-completing -> completed
+active -> completed
+paused -> completed
 active -> expired
 paused -> expired
 ```
@@ -171,8 +172,7 @@ paused -> expired
 | pending | expired | Study API time job or staff | `ends_at` or invitation expiry passed while still pending | Set `expired`, increment version, revoke writer writes | Repeat returns the expired projection | Reads only | `200` for staff job, participant reads may be `410` after grace |
 | active | paused | Participant, safety rule, or staff | Writer lease for participant pause | Set paused, increment version | Same key returns stored pause | Observations, resume start, complete | `200` |
 | paused | active | Participant resume with writer lease | `allow_resume` on snapshot, lease valid | Set active, increment version | Same key returns stored resume | Same as active | `200` |
-| active or paused | completing | Complete command | Lease, `expected_version`, immutable turn rules | See completion section | Same key and hash return stored complete response | No conversation writes | `200` |
-| completing | completed | Same complete transaction | Completing is internal to the complete transaction in v1 | Record reason, server `completed_at`, delivery row if required | Same as complete | Reads for grace period | `200` |
+| active or paused | completed | Complete command | Lease, `expected_version`, immutable turn rules | See completion section. Completing is not a stored intermediate status. | Same key and hash return stored complete response | Reads for the 24 hour grace period | `200` |
 | active or paused | expired | Time job | Assigned duration or hard stop reached without complete | Set expired, increment version, revoke writes | Repeat is a no-op | Reads for grace period | Job `200` |
 
 A missing session, a revoked invitation, or a read after grace period is projected as unavailable through `404` or `410`. Do not persist `unavailable` for those cases.
@@ -252,16 +252,27 @@ The browser does not choose a `session_id` on every request. The capability cook
 | --- | --- | --- |
 | `POST /v1/participant-access/exchange` | One-time invitation token | Validates the token hash, sets the participant capability cookie, and returns the participant session view |
 | `GET /v1/participant-session` | Participant capability | Returns only the public projection for the capability's session |
+| `POST /v1/participant-session/consent` | Consent version, allowed data classes, permitted modes, `Idempotency-Key`, expected version | Records required consent when the protocol requires it. Idempotent for the same version. Withdrawal uses the same route with `withdrawn=true`. |
 | `POST /v1/participant-session/start` | Preferred mode, `Idempotency-Key`, and expected session version | Creates one lifecycle transition. When `ai_speaks_first` is true, returns stored opening content from the snapshot. |
 | `POST /v1/participant-session/messages` | Participant text, client message ID, and `Idempotency-Key` | Creates participant text and one backend-owned AI generation operation |
 | `POST /v1/participant-session/realtime/calls` | Browser SDP, `Idempotency-Key`, and expected session version | Creates one server-configured Realtime call, persists the call ID from the provider `Location` header, queues the control handoff, and returns only the SDP answer |
 | `POST /v1/participant-session/observations` | Versioned allowlisted browser observations | Records client observations without turning them into canonical provider facts |
 | `GET /v1/participant-session/transcript` | Participant capability and optional cursor | Returns the canonical participant projection in server order |
 | `POST /v1/participant-session/complete` | Completion reason, final participant recovery observations, `Idempotency-Key`, and expected session version | Atomically records valid final data and completion |
-| `POST /v1/participant-session/pause` | `Idempotency-Key` and expected session version | Moves an active writer session to `paused` when the snapshot allows resume |
-| `POST /v1/participant-session/writer-lease/transfer` | Target capability identifier or transfer nonce, `Idempotency-Key`, expected version | Moves the writer lease. The prior lease cannot write afterward. |
+| `POST /v1/participant-session/pause` | `Idempotency-Key` and expected session version | Moves an active writer session to `paused` when the snapshot allows resume. Paused is still a valid session, not an unavailable projection. |
+| `POST /v1/participant-session/writer-lease/transfer` | Transfer nonce from the read-only device, `Idempotency-Key`, expected version | Moves the writer lease. The prior lease cannot write afterward. |
 
-The public API must not expose a general `/turns` upsert. `POST /messages` is the text generation command. Voice ingestion is a narrower internal or authenticated route for provider-identified items or recovery observations. Staff APIs use a separate route group, a verified Supabase JWT, and explicit role and study membership checks.
+The public API must not expose a general `/turns` upsert. `POST /messages` is the text generation command.
+
+Voice provider items are ingested on an internal worker route, not by the browser:
+
+```http
+POST /internal/v1/realtime/calls/{openai_call_id}/items
+```
+
+That internal route requires a Railway service credential, not a participant cookie. The worker posts provider-identified final items. The Study API maps each `provider_item_id` to one canonical turn. Browser recovery observations stay on `POST /v1/participant-session/observations` and on the complete request, and they never become canonical AI text unless a matching provider item exists.
+
+Staff APIs use a separate route group. The Vercel UI server forwards the verified Supabase JWT in the `Authorization` header. The Study API verifies that JWT and then checks role and study membership. The browser does not call staff routes with a raw access token in application JavaScript.
 
 ### Health
 
@@ -278,7 +289,21 @@ Do not put researcher search or administration on the participant API. Leave res
 /v1/staff/...   deferred
 ```
 
-Staff cookie handling lives in the Auth plan. The Study API verifies the Supabase JWT and server-controlled role claims. The Study API does not treat a browser-supplied user id string as proof.
+Staff cookie handling lives in the Auth plan. The Study API verifies the forwarded Supabase JWT and server-controlled role claims. The Study API does not treat a browser-supplied user id string as proof.
+
+Staff actions by role, deny by default:
+
+| Action | operator | researcher | study_admin |
+| --- | --- | --- | --- |
+| Create invitation and session | no | no | yes |
+| Read transcript for current `study_id` | yes | yes | yes |
+| Export transcript | no | yes, with recent auth | yes, with recent auth |
+| Create a correction revision | no | yes | yes |
+| Delete or tombstone | no | no | yes, with recent auth |
+| Publish a configuration snapshot | no | no | yes |
+| Transfer a writer lease | no | no | yes |
+
+v1 may have one `study_id`. Membership rows still name that `study_id`.
 
 ## Provenance and turns
 
@@ -420,7 +445,9 @@ Operational connection events may use a separate allowlist and sampling rule. Ap
 
 Consent is a protocol and research ethics gate. Microphone permission is not research consent.
 
-When the approved protocol requires formal consent, store the consent version, timestamp, allowed data classes, and permitted interaction modes. Block OpenAI transmission, transcript persistence, and LangSmith export when required consent is absent or withdrawn.
+When the approved protocol requires formal consent, the UI posts `POST /v1/participant-session/consent` before start. Store the consent version, timestamp, allowed data classes (`consent_profile`), and permitted interaction modes. Block start, OpenAI transmission, transcript persistence, and LangSmith export when required consent is absent or withdrawn.
+
+Withdrawal posts the same route with `withdrawn=true`. Withdrawal revokes the writer lease, blocks new Realtime setup, and records a tombstone on later trace export. Existing canonical turns stay until a deletion request under the approved retention policy.
 
 When the protocol does not require stored consent, do not require consent columns to be filled, and do not block start for a missing consent version.
 
@@ -432,7 +459,7 @@ Completion is one database transaction that:
 2. Inserts any missing final participant recovery observations under the normal provenance rules.
 3. Rejects an existing ID whose immutable payload has a different content hash.
 4. Records the completion reason and server completion time.
-5. Changes the session state to completed.
+5. Changes the session state from `active` or `paused` to `completed`. Do not persist `completing`.
 6. Writes any durable trace delivery record required by the selected guarantee. Best effort writes none that the request must wait on.
 
 A repeated request with the same `Idempotency-Key` and the same request hash returns the stored response. The same key with a different request hash returns `409`. Complete must not accept a list of client-authored AI turns.
@@ -494,6 +521,10 @@ Set the following limits in v1. Oversized recovery batches are rejected as a who
 | Model allowlist | snapshot model only |
 | Per session spend alert | configured on the host, emergency cutoff then text fallback if the snapshot allows text |
 | Reconnect rate | 10 Realtime setup attempts per 5 minutes per capability |
+| Token exchange | 10 attempts per 15 minutes per IP |
+| Messages | 30 per 5 minutes per capability |
+| Observations | 60 per 5 minutes per capability |
+| Complete | 10 per 15 minutes per capability |
 
 Preserve trusted provider usage details, including separate audio and text token classes when available. If exact research cost must be reproducible later, store the provider usage payload and pricing version in Study Postgres rather than relying on later LangSmith price changes.
 
@@ -511,18 +542,18 @@ OpenAI and LangSmith outages appear in dependency health metrics. An OpenAI or L
 
 Replace qualitative review questions with measurable release gates. Record an owner and alert threshold for each gate.
 
-| Gate | What is measured |
-| --- | --- |
-| Session start | Start succeeds for a valid writer capability |
-| Acknowledged turn durability | Canonical turns remain after process restart |
-| Completion success | Complete transaction commits or fails as a whole |
-| Realtime setup | SDP answer returned without leaking call ID or API key |
-| Generation latency | Text operation success and duration |
-| Reconnect success | Refresh does not duplicate canonical conversation |
-| Trace export lag | Only if an outbox exists later |
-| Duplicate rate | Conflicting IDs return `409` rather than overwrite |
-| Unreconciled session rate | Provider item gaps are visible |
-| Cost variance | Provider usage vs alert threshold |
+| Gate | What is measured | Owner | Alert threshold |
+| --- | --- | --- | --- |
+| Session start | Start succeeds for a valid writer capability | Study API on-call | Error rate above 2 percent over 15 minutes |
+| Acknowledged turn durability | Canonical turns remain after process restart | Study API on-call | Any lost acknowledged turn in staging restore drills |
+| Completion success | Complete transaction commits or fails as a whole | Study API on-call | Error rate above 1 percent over 15 minutes |
+| Realtime setup | SDP answer returned without leaking call ID or API key | Study API on-call | Setup error rate above 5 percent over 15 minutes |
+| Generation latency | Text operation success and duration | Study API on-call | p95 above 8 seconds for text success |
+| Reconnect success | Refresh does not duplicate canonical conversation | Study API on-call | Any duplicate canonical conversation in staging |
+| Trace export lag | Only if an outbox exists later | Export worker on-call | Outbox age above 15 minutes |
+| Duplicate rate | Conflicting IDs return `409` rather than overwrite | Study API on-call | Any silent overwrite in contract tests |
+| Unreconciled session rate | Provider item gaps are visible | Study API on-call | Gap rate above 5 percent of voice sessions |
+| Cost variance | Provider usage vs alert threshold | Study API on-call | Session spend above the snapshot budget |
 
 ## Persistence
 
@@ -530,7 +561,7 @@ Study Postgres is one private Postgres database owned by the Study API. Railway 
 
 Run the same contract suite against memory and Postgres, including concurrent requests from separate API instances. Schema changes should be additive while old code may still run. Define deployment order, rollback criteria, and how old code behaves against the new schema. Do not dual write without a reconciliation and cutover plan.
 
-Encrypted backups, point in time recovery (PITR), retention, restore ownership, and a tested restore procedure are required before production participant data. Define acceptable data loss and recovery targets. Restore drills must verify transcript hashes, order, configuration snapshots, audit records, and outbox state when an outbox exists.
+Encrypted backups, point in time recovery (PITR), retention, restore ownership, and a tested restore procedure are required before production participant data. The restore owner is the Study API on-call. Rollback is allowed only for additive schema that old code can ignore. The recovery target is no more than 5 minutes of data loss (RPO) and a restore drill completed within 4 hours (RTO). Restore drills must verify transcript hashes, order, configuration snapshots, audit records, and outbox state when an outbox exists.
 
 ## Audit stream
 
@@ -538,7 +569,7 @@ Keep a server-generated audit stream separate from participant observations. Aud
 
 ## Observability outside LangSmith
 
-Add structured application logs, request IDs, database metrics, Realtime connection metrics, and alerts. Define service objectives for message success, transcript durability, completion success, and Realtime setup. Never put participant text, access tokens, Realtime secrets, or Supabase JWTs in application logs.
+Add structured application logs, request IDs, database metrics, Realtime connection metrics, outbox backlog when an outbox exists, and alerts. Define service objectives for message success, transcript durability, completion success, Realtime setup, and outbox delivery when enabled. Never put participant text, access tokens, Realtime secrets, or Supabase JWTs in application logs.
 
 ## Configuration snapshot
 
@@ -685,10 +716,9 @@ class FrozenModel(BaseModel):
 class SessionStatus(StrEnum):
     pending = "pending"
     active = "active"
-    completing = "completing"
+    paused = "paused"
     completed = "completed"
     expired = "expired"
-    paused = "paused"
 
 
 class InteractionMode(StrEnum):
@@ -804,6 +834,8 @@ class SessionRecord(FrozenModel):
     configuration_snapshot_id: UUID
     consent_version: str | None = None
     consented_at: datetime | None = None
+    consent_profile: str | None = None
+    consent_withdrawn_at: datetime | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     completion_reason: str | None = None
@@ -856,6 +888,24 @@ class MessageResponse(FrozenModel):
     version: int
 ```
 
+### Observations
+
+```python
+class ObservationCreate(FrozenModel):
+    observation_id: UUID
+    observation_type: ObservationType
+    occurred_at: datetime
+    connection_state: ConnectionState | None = None
+    client_first_audio_observed_ms: int | None = Field(default=None, ge=0)
+    client_first_transcript_observed_ms: int | None = Field(default=None, ge=0)
+
+
+class ObservationAck(FrozenModel):
+    accepted: bool = True
+    observation_id: UUID
+    untrusted: bool = True
+```
+
 ### Session lifecycle requests
 
 ```python
@@ -878,32 +928,45 @@ class SessionCompleteRequest(FrozenModel):
     reason: str = Field(default="participant_ended", max_length=64)
     expected_version: int = Field(ge=1)
     client_completed_at: datetime | None = None
+    recovery_observations: list[ObservationCreate] = Field(default_factory=list, max_length=20)
 
 
 class SessionCompleteResponse(FrozenModel):
     session: ParticipantSessionView
     saved_turn_count: int
+
+
+class ConsentRecordRequest(FrozenModel):
+    consent_version: str = Field(min_length=1, max_length=64)
+    consent_profile: str = Field(min_length=1, max_length=64)
+    allowed_modes: list[InteractionMode] = Field(min_length=1, max_length=2)
+    withdrawn: bool = False
+    expected_version: int = Field(ge=1)
+
+
+class SessionDomain:
+    """Lifecycle rules live here, not on the public view.
+
+    Methods such as start, pause, complete, and expire take a SessionRecord
+    and return a new SessionRecord. They do not serialize to the browser.
+    """
+
+
+class ResearcherSessionView(FrozenModel):
+    session_id: UUID
+    study_id: UUID
+    status: SessionStatus
+    version: int
+    configuration_snapshot_id: UUID
+    telemetry_thread_id: UUID
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    completion_reason: str | None = None
+    consent_version: str | None = None
+    writer_lease_expires_at: datetime | None = None
 ```
 
-`SessionCompleteRequest` does not include client-authored final AI turns.
-
-### Observations
-
-```python
-class ObservationCreate(FrozenModel):
-    observation_id: UUID
-    observation_type: ObservationType
-    occurred_at: datetime
-    connection_state: ConnectionState | None = None
-    client_first_audio_observed_ms: int | None = Field(default=None, ge=0)
-    client_first_transcript_observed_ms: int | None = Field(default=None, ge=0)
-
-
-class ObservationAck(FrozenModel):
-    accepted: bool = True
-    observation_id: UUID
-    untrusted: bool = True
-```
+`SessionCompleteRequest` does not include client-authored final AI turns. Recovery observations must use the same allowlisted observation model as `POST /v1/participant-session/observations`.
 
 ### Realtime setup
 
@@ -1012,7 +1075,9 @@ Ship versioned study exports from Study Postgres. Choose which interrupted-AI te
 * Two simultaneous start or completion requests produce one transition.
 * Unknown input fields and oversized payloads are rejected.
 * When the approved protocol requires consent, session start, Realtime setup, and tracing are blocked without the required consent version.
+* Consent write with the same version is idempotent. Withdrawal blocks new Realtime setup.
 * A staff member cannot read a session outside the staff member's current study membership.
+* Internal voice ingest maps a duplicate provider item to one canonical turn.
 
 ### Transcript integrity
 

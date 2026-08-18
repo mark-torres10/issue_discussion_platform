@@ -54,7 +54,7 @@ After exchange, participant pages should use a route such as `/session`, `/sessi
 
 The participant capability is required on every participant read and write, including Realtime setup. The capability is scoped to one session and a small set of allowed actions. The capability is separate from staff Supabase Auth. Participant routes remain outside Supabase Auth.
 
-Because the capability uses a cookie, state changing requests need CSRF defense. Use an appropriate `SameSite` setting, strict `Origin` verification, and a CSRF token when the deployment model requires one. CORS alone is not a CSRF control.
+Because the capability uses a cookie, state changing requests always need CSRF defense. Send a CSRF token header, verify `Origin` against the allowed app origins, and set the capability cookie to `HttpOnly`, `Secure`, and `SameSite=None` when the UI and Study API are on different sites. CORS alone is not a CSRF control.
 
 If the same invitation is opened on a second device, the second device stays read-only until the participant completes an explicit writer lease transfer. The first writer keeps the lease until transfer succeeds.
 
@@ -79,7 +79,7 @@ The introduction page explains:
 
 The page should use a short plain language summary.
 
-Formal consent is a protocol and IRB gate, not a step that every study always requires. Microphone permission is not research consent. When the approved protocol requires formal consent, the UI must collect it before any OpenAI transmission, transcript persistence, or LangSmith export. Stored consent should include the consent version, timestamp, allowed data classes, and permitted interaction modes.
+Formal consent is a protocol and IRB gate, not a step that every study always requires. Microphone permission is not research consent. When the approved protocol requires formal consent, the UI posts `POST /v1/participant-session/consent` before start, Realtime setup, or any OpenAI transmission. Stored consent should include the consent version, timestamp, allowed data classes, and permitted interaction modes. Withdrawal uses the same route with `withdrawn=true`.
 
 Approved participant wording should name relevant subprocessors. Voice is sent to OpenAI even when raw audio is not kept. "Voice" means approved configuration and metrics, not raw audio files. The application should not retain raw audio.
 
@@ -135,7 +135,7 @@ The participant can press "End conversation" at any time. The application should
 
 The application can also end the session when the assigned time expires. It should first give a neutral notice that the conversation is almost complete, then let the Study API produce a brief closing response when the snapshot allows one.
 
-Completion uses `POST /v1/participant-session/complete` with an `Idempotency-Key` and expected session version. After complete, conversation writes stop. The UI can still read a minimal completed projection for a defined grace period. The projection can include status, completion time, and next instruction. After the grace period or explicit revocation, the Study API returns `410`.
+Completion uses `POST /v1/participant-session/complete` with an `Idempotency-Key`, expected session version, and any final participant recovery observations. After complete, conversation writes stop. The UI can still read a minimal completed projection for 24 hours. The projection can include status, completion time, and next instruction. After that grace period or explicit revocation, the Study API returns `410`. The writer lease is revoked on complete. The same cookie remains read-only during the grace period.
 
 ### Confirm completion
 
@@ -222,7 +222,7 @@ The initial application can use these routes:
   Save confirmation and next instruction from the completed projection
 
 /session/unavailable
-  Invalid, expired, paused, or post-grace completed session
+  Invalid, expired, revoked, or post-grace completed session. A paused session stays on /session with a resume control.
 ```
 
 An internal researcher interface can come later. Researcher pages should be a separate protected route group, because participant pages should not expose study controls or transcript search. Staff identity uses Supabase Auth. Participant capability cookies are not staff sessions.
@@ -288,12 +288,15 @@ The browser does not choose a `session_id` on every request. Participant calls a
 | --- | --- | --- |
 | `POST /v1/participant-access/exchange` | One time invitation token | Validates the token hash, sets the participant capability, and returns the participant session view |
 | `GET /v1/participant-session` | Participant capability | Returns only the public projection for the capability's session |
+| `POST /v1/participant-session/consent` | Consent version, profile, allowed modes, or withdrawal | Records required consent when the protocol requires it |
 | `POST /v1/participant-session/start` | Preferred mode, `Idempotency-Key`, and expected session version | Creates one lifecycle transition and, when configured, returns stored opening content from the snapshot |
 | `POST /v1/participant-session/messages` | Participant text, client message ID, and `Idempotency-Key` | Creates participant text and one backend owned AI generation operation |
 | `POST /v1/participant-session/realtime/calls` | Browser SDP, `Idempotency-Key`, and expected session version | Creates one server configured Realtime call and returns only the SDP answer |
 | `POST /v1/participant-session/observations` | Versioned allowlisted browser observations | Records client observations without turning them into canonical provider facts |
 | `GET /v1/participant-session/transcript` | Participant capability and optional cursor | Returns the canonical participant projection in server order |
 | `POST /v1/participant-session/complete` | Completion reason, final participant recovery observations, `Idempotency-Key`, and expected session version | Atomically records valid final data and completion |
+| `POST /v1/participant-session/pause` | `Idempotency-Key` and expected session version | Pauses an active writer session. Paused is not unavailable. |
+| `POST /v1/participant-session/writer-lease/transfer` | Transfer nonce, `Idempotency-Key`, expected version | Moves the writer lease to the second device |
 
 The public API should not expose a general turn upsert. The UI must not create AI or system turns, and it must not update an existing turn by posting different content for the same client ID.
 
@@ -323,7 +326,7 @@ The connection flow should be:
 4. The browser receives the SDP answer only. The browser never receives the standard OpenAI API key or the provider call ID.
 5. The browser sends and receives media. Unexpected client session updates are a backend detection problem, not a UI owned configuration change.
 6. The browser posts allowlisted observations to the Study API. Final AI turns are created by the backend from trusted provider facts.
-7. Study Postgres stores the authoritative study record. LangSmith receives approved derived traces later under Approved tracing.
+7. Study Postgres stores the authoritative study record. LangSmith may later receive a best-effort derived projection under Approved tracing. Gaps are accepted until a complete export policy is chosen.
 
 The standard OpenAI API key must stay on the Study API host. It must never be included in the browser bundle or returned to the participant.
 
@@ -335,7 +338,7 @@ LangSmith can trace model calls, events, transcript text, voice configuration, i
 
 The browser should not be the only holder of a final AI turn. The Study API should acknowledge persisted provider item IDs and expose a reconciliation cursor. After a refresh, the UI reloads the canonical transcript.
 
-IndexedDB or another persistent browser store is optional recovery for unsent participant observations, not a store of canonical AI text. If IndexedDB is used, the plan must define encryption at rest in the browser, expiry, cleanup on complete or revoke, and whether the consent profile allows local persistence. Prefer posting observations promptly and deleting local copies after the Study API acknowledges them.
+v1 does not use IndexedDB. Unsent participant observations stay in memory for the page lifetime and are posted to the Study API. If a later milestone adds IndexedDB, that milestone must define encryption at rest in the browser, 24 hour expiry, cleanup on complete or revoke, and whether the consent profile allows local persistence.
 
 Closing or crashing the browser during final turn delivery must not depend on the UI rewriting AI turns. Missing client observations can be retried. Missing provider items are a backend reconciliation report.
 
@@ -383,7 +386,7 @@ Researcher tools for transcript export stay on protected staff routes. The parti
 
 ## Data and research controls
 
-Each saved session should include a server generated `session_id` that stays internal, a `study_id`, study wave, configuration snapshot ID, assigned issue, assigned AI position, prompt version, avatar version, voice version, timestamps, connection events, transcript turns, and completion status. Prompt, avatar, and voice versions are part of the immutable snapshot for the session.
+Study Postgres stores those fields. The participant UI must not keep the internal `session_id` in client types used for routing or analytics. The public participant session view omits `session_id`.
 
 The system should define what happens when:
 
@@ -411,7 +414,7 @@ The study team should decide:
 8. Whether a participant can resume an interrupted session under the same writer lease.
 9. What safety rules end or pause a session.
 10. What the completion page should ask the participant to do next.
-11. How long the completed projection remains readable before `410`.
+11. How long the completed projection remains readable before `410`. The backend default is 24 hours.
 12. Whether any required consent wording must name OpenAI as a voice subprocessor.
 
 ## Initial scope

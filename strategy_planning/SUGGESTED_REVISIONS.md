@@ -1,5 +1,9 @@
 # Suggested revisions to the backend and LangSmith plans
 
+## Applied status
+
+The backend, LangSmith, UI, Auth, and init planning files on this branch now use these contracts. Keep this file as the review record. If a later edit contradicts a frozen default below, prefer the proposal files and update this record.
+
 ## Review conclusion
 
 The proposals describe the participant journey well, but they do not yet define the contracts that protect the study record. The largest gaps are at the boundaries between the browser, the study API, OpenAI Realtime, the database, and LangSmith.

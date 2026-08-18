@@ -323,10 +323,22 @@ For the first Auth slice under Sample contracts, the Study API does not need to 
 
 When researcher APIs appear on the Study API:
 
-1. The browser sends the Supabase access token to the Study API, or the UI server forwards it after it has already authorized the user.
+1. The Next.js UI server reads the staff session with `@supabase/ssr` and forwards the access token in the `Authorization` header to the Study API. Application JavaScript does not call staff Study API routes with a raw token.
 2. The Study API verifies the JWT with the Supabase JWT secret or JWKS.
 3. The Study API authorizes by `sub`, server-controlled `app_metadata` claims, and current study membership for the requested `study_id`, never by editable `user_metadata`.
 4. Deny by default. A staff member cannot read a session outside current study membership.
+
+Staff actions by role, deny by default:
+
+| Action | operator | researcher | study_admin |
+| --- | --- | --- | --- |
+| Create invitation and session | no | no | yes |
+| Read transcript for current `study_id` | yes | yes | yes |
+| Export transcript | no | yes, with recent auth | yes, with recent auth |
+| Create a correction revision | no | yes | yes |
+| Delete or tombstone | no | no | yes, with recent auth |
+| Publish a configuration snapshot | no | no | yes |
+| Transfer a writer lease | no | no | yes |
 
 Store authorization fields such as `role: "researcher"` in `app_metadata`, not `user_metadata`. Pair the role with membership rows that name `study_id`.
 
