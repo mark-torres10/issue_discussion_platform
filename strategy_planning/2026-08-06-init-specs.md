@@ -21,4 +21,4 @@ Shared milestones across the later proposals:
 
 The first LangSmith integration records transcript text, voice configuration, interruption state, and approved timing and usage fields. It does not record raw audio. "Voice" means approved configuration and metrics, not raw audio files.
 
-Later proposals define the contracts. Read `ui_proposal_2026_08_06.md` for the participant journey and participant API mapping. Read `supabase_auth_proposal_2026_08_05.md` for staff login. Read the backend and LangSmith proposals for capability cookies, canonical turns, completion, and tracing.
+Later proposals define the contracts. Read `ui_proposal_2026_08_06.md` for the participant journey and participant API mapping. Read `supabase_auth_proposal_2026_08_05.md` for staff login. Read the backend and LangSmith proposals for capability cookies, canonical turns, completion, and tracing. Read `CREDENTIALS_AND_SETUP.md` for the accounts, dashboard settings, and secrets to create in one sitting.
