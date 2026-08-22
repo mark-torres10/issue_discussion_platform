@@ -1,24 +1,10 @@
-import os
-
 from fastapi import FastAPI
-from pydantic import BaseModel
+
+from app.api.router import api_router
+from app.core.errors import register_exception_handlers, register_middleware
 
 app = FastAPI(title="Issue Discussion Platform API")
 
-
-class HealthResponse(BaseModel):
-    status: str
-    commit: str | None = None
-
-
-@app.get("/health")
-def health() -> HealthResponse:
-    return HealthResponse(
-        status="ok",
-        commit=os.environ.get("RAILWAY_GIT_COMMIT_SHA"),
-    )
-
-
-@app.get("/")
-def root() -> dict[str, str]:
-    return {"message": "Issue Discussion Platform API"}
+register_middleware(app)
+register_exception_handlers(app)
+app.include_router(api_router)

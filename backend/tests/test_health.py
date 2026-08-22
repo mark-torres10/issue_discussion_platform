@@ -1,11 +1,24 @@
-from app.main import app
-from fastapi.testclient import TestClient
+class TestHealthEndpoint:
+    def test_health_returns_ok(self, client, commit_sha: str) -> None:
+        response = client.get("/health")
 
-client = TestClient(app)
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok", "commit": commit_sha}
 
 
-def test_health_returns_ok() -> None:
-    response = client.get("/health")
+class TestReadyEndpoint:
+    def test_ready_ok_in_memory_mode(self, client, memory_mode: None) -> None:
+        response = client.get("/ready")
 
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok", "commit": None}
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
+    def test_ready_requires_database_url_in_postgres_mode(
+        self, client, postgres_mode: None
+    ) -> None:
+        response = client.get("/ready")
+
+        assert response.status_code == 503
+        body = response.json()
+        assert body["status"] == "degraded"
+        assert "database" in body["reason"].lower()
