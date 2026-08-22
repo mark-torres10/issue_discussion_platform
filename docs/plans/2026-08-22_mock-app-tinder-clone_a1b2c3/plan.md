@@ -72,3 +72,10 @@ Details: [steps/step5.md](steps/step5.md)
 5. Uploading photo and/or video for LinkedIn or Trust Source sets the corresponding tag on the current user and persists upload paths.
 6. `pytest` passes for profiles, swipes, and verifications.
 7. README documents install, run, and manual happy-path verification.
+
+## Verification evidence
+
+End-to-end journey QA completed 2026-08-22 against `http://127.0.0.1:8765/`. All eight happy-path journeys are **Verified** with screenshot and video evidence.
+
+- **Journey review:** [VERIFIED_JOURNEYS.md](VERIFIED_JOURNEYS.md) — status table, notes, and pass/fail summary.
+- **Artifacts:** [images/README.md](images/README.md) — PNG screenshots (`01`–`08`) and demo recording (`09-journey-demo.webm`).

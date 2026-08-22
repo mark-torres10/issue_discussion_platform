@@ -225,6 +225,10 @@ git add mock_app/
 git commit -m "feat(mock_app): verification UI, frontend mount, and README"
 ```
 
+## Screenshot check
+
+After manual or automated E2E verification, compare captures against the plan evidence set: [../images/README.md](../images/README.md) and [../VERIFIED_JOURNEYS.md](../VERIFIED_JOURNEYS.md).
+
 ## Orchestrator note
 
 Steps 4 and 5 are **sequential** on `frontend/*`. Steps 2 and 3 are **sequential** on `main.py`. Steps 1 ∥ none. Steps 2–3 backend can be parallelized with step 4 only if step 4 avoids `main.py` (as specified); step 5 must run last.
