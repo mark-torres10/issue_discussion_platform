@@ -5,6 +5,10 @@ let deck = [];
 let currentIndex = 0;
 let isSwiping = false;
 
+/** @type {{ profile: object, direction: string, index: number } | null} */
+let lastSwipe = null;
+let undoTimer = null;
+
 const cardStack = document.getElementById('card-stack');
 const emptyState = document.getElementById('empty-state');
 const errorMessage = document.getElementById('error-message');
@@ -17,10 +21,19 @@ const badgeLinkedin = document.getElementById('badge-linkedin');
 const badgeTrustSource = document.getElementById('badge-trust-source');
 const btnLike = document.getElementById('btn-like');
 const btnPass = document.getElementById('btn-pass');
+const btnUndo = document.getElementById('btn-undo');
+const actionBar = document.getElementById('action-bar');
+const deckCounter = document.getElementById('deck-counter');
+const swipeToast = document.getElementById('swipe-toast');
+const keyboardHint = document.getElementById('keyboard-hint');
 
+const verificationModal = document.getElementById('verification-modal');
+const verificationBackdrop = document.getElementById('verification-backdrop');
 const verificationPanel = document.getElementById('verification-panel');
 const btnToggleVerification = document.getElementById('btn-toggle-verification');
-const verificationStatus = document.getElementById('verification-status');
+const btnCloseVerification = document.getElementById('btn-close-verification');
+const linkedinStatus = document.getElementById('linkedin-status');
+const trustStatus = document.getElementById('trust-status');
 const meBadgeLinkedin = document.getElementById('me-badge-linkedin');
 const meBadgeTrustSource = document.getElementById('me-badge-trust-source');
 const tabLinkedin = document.getElementById('tab-linkedin');
@@ -39,29 +52,35 @@ const btnSubmitTrust = document.getElementById('btn-submit-trust');
 /** @type {object | null} */
 let currentUser = null;
 
-function setVerificationStatus(message, type) {
-  if (!verificationStatus) {
+function getTabStatusElement(tab) {
+  return tab === 'linkedin' ? linkedinStatus : trustStatus;
+}
+
+function setTabStatus(tab, message, type) {
+  const el = getTabStatusElement(tab);
+  if (!el) {
     return;
   }
-  verificationStatus.textContent = message;
-  verificationStatus.hidden = !message;
-  verificationStatus.classList.remove('success', 'error');
+  el.textContent = message;
+  el.hidden = !message;
+  el.classList.remove('success', 'error');
   if (type) {
-    verificationStatus.classList.add(type);
+    el.classList.add(type);
   }
 }
 
-function clearVerificationStatus() {
-  setVerificationStatus('', null);
+function clearTabStatus(tab) {
+  setTabStatus(tab, '', null);
+}
+
+function clearAllTabStatuses() {
+  clearTabStatus('linkedin');
+  clearTabStatus('trust');
 }
 
 function updateMeBadges(profile) {
-  if (meBadgeLinkedin) {
-    setBadge(meBadgeLinkedin, 'LinkedIn', Boolean(profile.linkedin_verified));
-  }
-  if (meBadgeTrustSource) {
-    setBadge(meBadgeTrustSource, 'Trust Source', Boolean(profile.trust_source_verified));
-  }
+  setBadge(meBadgeLinkedin, 'LinkedIn', Boolean(profile.linkedin_verified), true);
+  setBadge(meBadgeTrustSource, 'Trust Source', Boolean(profile.trust_source_verified), true);
 }
 
 async function fetchMe() {
@@ -75,6 +94,22 @@ async function fetchMe() {
   return profile;
 }
 
+function openVerificationModal() {
+  verificationModal.hidden = false;
+  document.body.style.overflow = 'hidden';
+  clearAllTabStatuses();
+  btnCloseVerification?.focus();
+  fetchMe().catch((err) => {
+    setTabStatus('linkedin', err.message || 'Could not load your profile.', 'error');
+  });
+}
+
+function closeVerificationModal() {
+  verificationModal.hidden = true;
+  document.body.style.overflow = '';
+  clearAllTabStatuses();
+}
+
 function showVerificationTab(tab) {
   const isLinkedin = tab === 'linkedin';
   tabLinkedin.classList.toggle('active', isLinkedin);
@@ -83,18 +118,15 @@ function showVerificationTab(tab) {
   tabTrust.setAttribute('aria-selected', String(!isLinkedin));
   panelLinkedin.hidden = !isLinkedin;
   panelTrust.hidden = isLinkedin;
+  clearTabStatus(isLinkedin ? 'trust' : 'linkedin');
 }
 
 function toggleVerificationPanel() {
-  const isHidden = verificationPanel.hidden;
-  verificationPanel.hidden = !isHidden;
-  if (!isHidden) {
-    return;
+  if (verificationModal.hidden) {
+    openVerificationModal();
+  } else {
+    closeVerificationModal();
   }
-  clearVerificationStatus();
-  fetchMe().catch((err) => {
-    setVerificationStatus(err.message || 'Could not load your profile.', 'error');
-  });
 }
 
 function renderMediaPreview(container, photoInput, videoInput) {
@@ -133,6 +165,7 @@ function renderMediaPreview(container, photoInput, videoInput) {
 
 async function uploadVerification(kind) {
   const isLinkedin = kind === 'linkedin';
+  const tab = isLinkedin ? 'linkedin' : 'trust';
   const photoInput = isLinkedin ? linkedinPhoto : trustPhoto;
   const videoInput = isLinkedin ? linkedinVideo : trustVideo;
   const submitBtn = isLinkedin ? btnSubmitLinkedin : btnSubmitTrust;
@@ -146,11 +179,11 @@ async function uploadVerification(kind) {
   }
 
   if (!formData.has('photo') && !formData.has('video')) {
-    setVerificationStatus('Please select a photo and/or video to upload.', 'error');
+    setTabStatus(tab, 'Please select a photo and/or video to upload.', 'error');
     return;
   }
 
-  clearVerificationStatus();
+  clearTabStatus(tab);
   submitBtn.disabled = true;
 
   try {
@@ -165,7 +198,7 @@ async function uploadVerification(kind) {
     }
 
     const label = isLinkedin ? 'LinkedIn' : 'Trust Source';
-    setVerificationStatus(`${label} verification submitted successfully.`, 'success');
+    setTabStatus(tab, `${label} verification submitted — badge updated.`, 'success');
 
     photoInput.value = '';
     videoInput.value = '';
@@ -173,7 +206,7 @@ async function uploadVerification(kind) {
 
     await fetchMe();
   } catch (err) {
-    setVerificationStatus(err.message || 'Upload failed.', 'error');
+    setTabStatus(tab, err.message || 'Upload failed.', 'error');
   } finally {
     submitBtn.disabled = false;
   }
@@ -181,6 +214,16 @@ async function uploadVerification(kind) {
 
 function wireVerificationPanel() {
   btnToggleVerification?.addEventListener('click', toggleVerificationPanel);
+  btnCloseVerification?.addEventListener('click', closeVerificationModal);
+  verificationBackdrop?.addEventListener('click', closeVerificationModal);
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !verificationModal.hidden) {
+      event.preventDefault();
+      closeVerificationModal();
+    }
+  });
+
   tabLinkedin?.addEventListener('click', () => showVerificationTab('linkedin'));
   tabTrust?.addEventListener('click', () => showVerificationTab('trust'));
 
@@ -243,8 +286,20 @@ function resolvePhotoUrls(profile) {
   return [];
 }
 
-function setBadge(element, label, verified) {
-  element.textContent = verified ? `${label}: Verified` : `${label}: Not verified`;
+function setBadge(element, label, verified, showLabel = false) {
+  if (!element) {
+    return;
+  }
+  const labelEl = element.querySelector('.badge-label');
+  if (labelEl) {
+    labelEl.textContent = label;
+  }
+  const shortLabel = label === 'Trust Source' ? 'Trust' : label;
+  element.title = verified ? `${label}: Verified` : `${label}: Not verified`;
+  element.setAttribute('aria-label', element.title);
+  if (showLabel && labelEl) {
+    labelEl.textContent = verified ? `${shortLabel} ✓` : shortLabel;
+  }
   element.classList.toggle('badge-verified', verified);
   element.classList.toggle('badge-unverified', !verified);
 }
@@ -272,8 +327,6 @@ function renderPhotos(urls) {
     const placeholder = document.createElement('div');
     placeholder.className = 'photo-placeholder';
     placeholder.textContent = 'No photos';
-    placeholder.style.cssText =
-      'display:flex;align-items:center;justify-content:center;height:100%;color:#6b6b76;';
     profilePhotos.appendChild(placeholder);
     return;
   }
@@ -286,6 +339,11 @@ function renderPhotos(urls) {
     img.src = url;
     img.alt = 'Profile photo';
     img.loading = 'lazy';
+    img.addEventListener('error', () => {
+      img.alt = 'Photo unavailable';
+      img.style.objectFit = 'contain';
+      img.style.padding = '24px';
+    });
     scroll.appendChild(img);
   }
 
@@ -334,11 +392,31 @@ function renderProfile(profile) {
   setBadge(badgeTrustSource, 'Trust Source', Boolean(profile.trust_source_verified));
 }
 
+function updateDeckCounter() {
+  if (!deckCounter) {
+    return;
+  }
+  const remaining = Math.max(0, deck.length - currentIndex);
+  if (remaining === 0) {
+    deckCounter.hidden = true;
+    return;
+  }
+  deckCounter.hidden = false;
+  deckCounter.textContent =
+    remaining === 1 ? '1 profile left' : `${remaining} profiles left`;
+}
+
 function showEmptyState() {
   cardStack.hidden = true;
   emptyState.hidden = false;
-  btnLike.disabled = true;
-  btnPass.disabled = true;
+  actionBar.hidden = true;
+  if (keyboardHint) {
+    keyboardHint.hidden = true;
+  }
+  if (deckCounter) {
+    deckCounter.hidden = true;
+  }
+  hideUndo();
 }
 
 function showCurrentProfile() {
@@ -349,11 +427,16 @@ function showCurrentProfile() {
 
   cardStack.hidden = false;
   emptyState.hidden = true;
+  actionBar.hidden = false;
+  if (keyboardHint) {
+    keyboardHint.hidden = false;
+  }
   btnLike.disabled = false;
   btnPass.disabled = false;
 
   cardStack.classList.remove('swipe-like', 'swipe-pass');
   renderProfile(deck[currentIndex]);
+  updateDeckCounter();
 }
 
 async function fetchDeck() {
@@ -365,12 +448,67 @@ async function fetchDeck() {
   return data.profiles || [];
 }
 
+function showSwipeToast(direction) {
+  if (!swipeToast) {
+    return;
+  }
+  swipeToast.hidden = false;
+  swipeToast.textContent = direction === 'like' ? 'Liked!' : 'Passed';
+  swipeToast.className = `swipe-toast visible ${direction === 'like' ? 'like' : 'pass'}`;
+}
+
+function hideSwipeToast() {
+  if (!swipeToast) {
+    return;
+  }
+  swipeToast.classList.remove('visible');
+  window.setTimeout(() => {
+    swipeToast.hidden = true;
+  }, 150);
+}
+
 function animateSwipe(direction) {
   return new Promise((resolve) => {
+    showSwipeToast(direction);
     cardStack.classList.remove('swipe-like', 'swipe-pass');
+    // Force reflow so re-adding the class retriggers animation
+    void cardStack.offsetWidth;
     cardStack.classList.add(direction === 'like' ? 'swipe-like' : 'swipe-pass');
-    window.setTimeout(resolve, 250);
+    window.setTimeout(() => {
+      hideSwipeToast();
+      resolve();
+    }, 300);
   });
+}
+
+function hideUndo() {
+  if (undoTimer) {
+    window.clearTimeout(undoTimer);
+    undoTimer = null;
+  }
+  lastSwipe = null;
+  if (btnUndo) {
+    btnUndo.hidden = true;
+  }
+}
+
+function scheduleUndo(profile, direction, index) {
+  hideUndo();
+  lastSwipe = { profile, direction, index };
+  if (btnUndo) {
+    btnUndo.hidden = false;
+  }
+  undoTimer = window.setTimeout(hideUndo, 3000);
+}
+
+async function undoLastSwipe() {
+  if (!lastSwipe || isSwiping) {
+    return;
+  }
+
+  hideUndo();
+  currentIndex = lastSwipe.index;
+  showCurrentProfile();
 }
 
 async function swipe(direction) {
@@ -379,6 +517,7 @@ async function swipe(direction) {
   }
 
   const profile = deck[currentIndex];
+  const swipedIndex = currentIndex;
   isSwiping = true;
   btnLike.disabled = true;
   btnPass.disabled = true;
@@ -400,6 +539,7 @@ async function swipe(direction) {
 
     await animateSwipe(direction);
     currentIndex += 1;
+    scheduleUndo(profile, direction, swipedIndex);
     showCurrentProfile();
   } catch (err) {
     showError(err.message || 'Could not record swipe.');
@@ -410,10 +550,36 @@ async function swipe(direction) {
   }
 }
 
+function wireKeyboardShortcuts() {
+  document.addEventListener('keydown', (event) => {
+    if (!verificationModal.hidden) {
+      return;
+    }
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement
+    ) {
+      return;
+    }
+    const key = event.key.toLowerCase();
+    if (key === 'l') {
+      event.preventDefault();
+      swipe('like');
+    } else if (key === 'p') {
+      event.preventDefault();
+      swipe('pass');
+    }
+  });
+}
+
 async function init() {
   btnLike.addEventListener('click', () => swipe('like'));
   btnPass.addEventListener('click', () => swipe('pass'));
+  btnUndo?.addEventListener('click', undoLastSwipe);
   wireVerificationPanel();
+  wireKeyboardShortcuts();
 
   try {
     clearError();
