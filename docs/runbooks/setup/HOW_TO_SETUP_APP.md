@@ -54,7 +54,9 @@ uv sync
 
 ## Hosted projects
 
-This repo is linked to one Vercel project for the Next.js UI in `ui/`, and one Railway project for the FastAPI API in `backend/`. Next.js is the web framework used in `ui/`.
+This repo is linked to one Vercel project for the Next.js UI in `ui/`, and one Railway project for the FastAPI API in `backend/`. Next.js is the web framework used in `ui/`. GitHub is connected to both hosts.
+
+A pull request deploys a Vercel **preview** (a unique test URL for that branch). Merging into `main` deploys Vercel **production** and rebuilds the Railway `api` service in **production**.
 
 Sign in once on this machine:
 
@@ -86,14 +88,20 @@ railway status
 | GitHub | [mark-torres10/issue_discussion_platform](https://github.com/mark-torres10/issue_discussion_platform) |
 | Dashboard | [Vercel project](https://vercel.com/marktorres10s-projects/issue-discussion-platform) |
 
-The UI is not deployed until you push to GitHub or run a CLI deploy from `ui/`. Preview deploys are test URLs for a branch or CLI upload. Production is the live site for the main branch.
+Push a branch and open a pull request. Vercel comments on the PR with the preview URL. Merge to `main` to update production. Open production and recent previews from the dashboard, or list them with:
+
+```bash
+vercel ls --scope marktorres10s-projects --cwd ui
+```
+
+Use a CLI deploy only when you need an upload that is not from GitHub:
 
 ```bash
 cd ui
 vercel deploy --scope marktorres10s-projects -y --no-wait
 ```
 
-After a deploy, open the URL printed by the CLI, or open the project on the Vercel dashboard. Add `--prod` only when you intend to update production.
+Add `--prod` only when you intend to update production from the CLI.
 
 ### Railway (API)
 
@@ -103,20 +111,23 @@ After a deploy, open the URL printed by the CLI, or open the project on the Verc
 | Project | `issue-discussion-platform` |
 | Project ID | `dbbb5f8f-5e8d-4ec9-85d5-ed44f0bb8474` |
 | Service | `api` |
+| GitHub source | `mark-torres10/issue_discussion_platform`, branch `main`, root `/backend` |
 | Environment | `production` |
 | Public URL | [https://api-production-198a.up.railway.app](https://api-production-198a.up.railway.app) |
 | Health | [https://api-production-198a.up.railway.app/health](https://api-production-198a.up.railway.app/health) |
 | Dashboard | [Railway project](https://railway.com/project/dbbb5f8f-5e8d-4ec9-85d5-ed44f0bb8474) |
 
-Open the public URL for `{"message": "Issue Discussion Platform API"}`. Open `/health` for `{"status": "ok"}`. The dashboard shows builds, logs, and the `api` service.
+Open the public URL for `{"message": "Issue Discussion Platform API"}`. Open `/health` for `{"status": "ok"}` and the git commit SHA when Railway deployed from GitHub. The dashboard shows builds, logs, and the `api` service.
 
-Deploy local `backend/` code again with:
+Merging into `main` rebuilds production. Check status with `railway deployment list --service api --environment production`.
+
+Use a CLI upload only when you need to ship local files that are not on GitHub yet:
 
 ```bash
 railway up ./backend --path-as-root --service api --environment production --detach -m "Describe the change"
 ```
 
-`--path-as-root` means Railway treats `backend/` as the app root. `--detach` queues the build and returns. Check status with `railway deployment list --service api --environment production`.
+`--path-as-root` means Railway treats `backend/` as the app root. `--detach` queues the build and returns.
 
 ## After setup
 
