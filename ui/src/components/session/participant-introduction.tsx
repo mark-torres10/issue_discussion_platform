@@ -10,6 +10,7 @@ const DURATION_TOKEN = "{durationMinutes}";
 
 interface ParticipantIntroductionProps {
   session: StudySession;
+  audioCheckHref?: string;
 }
 
 /**
@@ -17,6 +18,7 @@ interface ParticipantIntroductionProps {
  */
 export function ParticipantIntroduction({
   session,
+  audioCheckHref = `/session/${session.sessionId}/audio-check`,
 }: ParticipantIntroductionProps) {
   const copy = useUiCopy();
   const body = copy.introduction.body.replace(
@@ -84,7 +86,7 @@ export function ParticipantIntroduction({
       </ul>
 
       <Link
-        href={`/session/${session.sessionId}/audio-check`}
+        href={audioCheckHref}
         className={buttonVariants({ size: "lg", className: "w-full" })}
         data-testid="continue-to-audio-check"
       >

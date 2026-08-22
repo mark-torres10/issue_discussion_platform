@@ -1,35 +1,84 @@
 import { describe, expect, it } from "vitest";
+import { CSRF_HEADER_NAME, withCsrfHeaders } from "@/lib/api/csrf";
 import {
-  getStudySession,
-  isSessionAvailable,
-  SAMPLE_SESSION_ID,
+  buildParticipantFetchInit,
+  mapParticipantSessionView,
+  PARTICIPANT_ROUTES,
+  SAMPLE_INVITATION_TOKEN,
+  type ParticipantSessionView,
 } from "@/lib/api/study-backend";
 
-describe("getStudySession", () => {
-  it("returns the sample active session", () => {
-    const result = getStudySession(SAMPLE_SESSION_ID);
-    expect(result?.status).toBe("active");
-    expect(result?.aiPersona.isAiLabel).toBe("AI participant");
-  });
+const SAMPLE_API_VIEW: ParticipantSessionView = {
+  status: "pending",
+  version: 1,
+  writer_role: "writer",
+  study_wave: "pilot-2026-fall",
+  issue: {
+    issue_id: "demo-campus-speech-001",
+    title: "Should universities limit invited speakers who hold contested views?",
+    summary: "Campus speech summary.",
+  },
+  ai_persona: {
+    display_name: "Jordan",
+    label: "AI participant",
+    short_introduction: "Jordan will disagree respectfully.",
+    avatar_url: "http://testserver/avatars/jordan.svg",
+    avatar_version: "v1",
+    assigned_position: "Protect invited speakers.",
+  },
+  rules: {
+    target_duration_seconds: 480,
+    warn_remaining_seconds: 90,
+    allow_interrupt: true,
+    allow_text_fallback: true,
+    ai_speaks_first: true,
+    show_exact_remaining_time: false,
+    allow_resume: true,
+  },
+  preferred_mode: "text",
+  started_at: null,
+  ends_at: null,
+  completed_at: null,
+  next_instruction: null,
+};
 
-  it("returns null for unknown session ids", () => {
-    const result = getStudySession("missing-session");
-    expect(result).toBeNull();
-  });
-
-  it("shares the sample issue title for expired-demo", () => {
-    const sample = getStudySession(SAMPLE_SESSION_ID);
-    const expired = getStudySession("expired-demo");
-    expect(expired?.status).toBe("expired");
-    expect(expired?.issue.title).toBe(sample?.issue.title);
+describe("TestExchangeRedirect", () => {
+  it("test_maps_api_session_view", () => {
+    const mapped = mapParticipantSessionView(SAMPLE_API_VIEW);
+    expect(mapped.sessionId).toBe("demo-campus-speech-001");
+    expect(mapped.status).toBe("active");
+    expect(mapped.version).toBe(1);
+    expect(mapped.aiPersona.displayName).toBe("Jordan");
+    expect(mapped.aiPersona.isAiLabel).toBe("AI participant");
+    expect(mapped.rules.durationMinutes).toBe(8);
+    expect(mapped.aiSpeaksFirst).toBe(true);
+    expect(mapped.aiPersona.avatarSrc).toBe("/avatars/jordan.svg");
   });
 });
 
-describe("isSessionAvailable", () => {
-  it("allows only active sessions", () => {
-    const active = getStudySession(SAMPLE_SESSION_ID);
-    const expired = getStudySession("expired-demo");
-    expect(active && isSessionAvailable(active)).toBe(true);
-    expect(expired && isSessionAvailable(expired)).toBe(false);
+describe("TestCsrfHeader", () => {
+  it("test_includes_csrf_on_post", () => {
+    const headers = withCsrfHeaders({}, "csrf-test-token");
+    expect(new Headers(headers).get(CSRF_HEADER_NAME)).toBe("csrf-test-token");
+
+    const init = buildParticipantFetchInit({
+      method: "POST",
+      csrf: true,
+      body: JSON.stringify({ invitation_token: SAMPLE_INVITATION_TOKEN }),
+    });
+    expect(init.credentials).toBe("include");
+    const builtHeaders = new Headers(init.headers);
+    expect(builtHeaders.get("content-type")).toBe("application/json");
+  });
+});
+
+describe("TestNoSessionIdInPath", () => {
+  it("test_session_routes_omit_id", () => {
+    for (const route of Object.values(PARTICIPANT_ROUTES)) {
+      expect(route).not.toMatch(/\/session\/[^/]+\//);
+      expect(route).not.toMatch(/demo-campus-speech-001/);
+    }
+    expect(PARTICIPANT_ROUTES.conversation).toBe("/session/conversation");
+    expect(PARTICIPANT_ROUTES.session).toBe("/session");
   });
 });

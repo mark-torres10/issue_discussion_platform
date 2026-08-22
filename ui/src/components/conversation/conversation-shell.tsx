@@ -25,15 +25,19 @@ import {
   appendParticipantMessage,
   beginAiStreamingReply,
   conversationStorageKey,
-  countParticipantTurns,
   createConversationSnapshot,
   finalizeAiStreamingReply,
   parseConversationSnapshot,
   resolveVoiceStateAfterControls,
-  selectScriptedAiReply,
   serializeConversationSnapshot,
   updateAiStreamingReply,
 } from "@/lib/realtime/state";
+import {
+  completeParticipantSessionAction,
+  sendParticipantMessageAction,
+  startParticipantSessionAction,
+} from "@/lib/api/study-backend-client";
+import { PARTICIPANT_ROUTES } from "@/lib/api/study-backend";
 import {
   requestMicrophoneAccess,
   stopMediaStream,
@@ -59,12 +63,13 @@ interface ConversationShellProps {
 }
 
 /**
- * Interactive discussion surface with mocked backend behavior.
+ * Interactive discussion surface wired to the Study API.
  */
 export function ConversationShell({ session }: ConversationShellProps) {
   const copy = useUiCopy();
   const router = useRouter();
   const [snapshot, setSnapshot] = useState<ConversationSnapshot | null>(null);
+  const [sessionVersion, setSessionVersion] = useState(session.version ?? 1);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [micLevel, setMicLevel] = useState(0);
@@ -78,6 +83,7 @@ export function ConversationShell({ session }: ConversationShellProps) {
   const completeSessionRef = useRef<
     ((reason: "user_ended" | "time_expired") => Promise<void>) | null
   >(null);
+  const sessionStartedRef = useRef(false);
 
   const persistSnapshot = useCallback((next: ConversationSnapshot) => {
     sessionStorage.setItem(
@@ -115,14 +121,44 @@ export function ConversationShell({ session }: ConversationShellProps) {
     const preferences = audioRaw
       ? parseAudioCheckPreferences(audioRaw)
       : null;
-    const mode: ConversationMode = preferences?.mode ?? "text";
-    const initial = createConversationSnapshot(
-      session.sessionId,
-      session.openingAiMessage,
-      mode,
-    );
-    persistSnapshot(initial);
-  }, [persistSnapshot, session.openingAiMessage, session.sessionId]);
+    const mode: ConversationMode =
+      preferences?.mode ?? session.preferredMode ?? "text";
+
+    if (sessionStartedRef.current) {
+      return;
+    }
+    sessionStartedRef.current = true;
+
+    void (async () => {
+      try {
+        const started = await startParticipantSessionAction(
+          mode,
+          session.version ?? 1,
+          `start-${session.sessionId}`,
+        );
+        setSessionVersion(started.session.version);
+        const openingText =
+          (session.aiSpeaksFirst ?? true) && started.opening_turn
+            ? started.opening_turn.display_text
+            : "";
+        const initial = createConversationSnapshot(
+          session.sessionId,
+          openingText,
+          mode,
+        );
+        persistSnapshot(initial);
+      } catch {
+        setErrorMessage(copy.conversation.loading);
+      }
+    })();
+  }, [
+    copy.conversation.loading,
+    persistSnapshot,
+    session.aiSpeaksFirst,
+    session.preferredMode,
+    session.sessionId,
+    session.version,
+  ]);
 
   useEffect(() => {
     if (!snapshot?.startedAt || snapshot.endedAt) {
@@ -280,19 +316,47 @@ export function ConversationShell({ session }: ConversationShellProps) {
     }
 
     clearReplyTimers();
-    const messageId = `msg-participant-${Date.now()}`;
+    const messageId = crypto.randomUUID();
     const withParticipant = appendParticipantMessage(snapshot, text, messageId);
-    persistSnapshot(withParticipant);
+    persistSnapshot({
+      ...withParticipant,
+      voiceState: "thinking",
+    });
 
-    const participantTurns = countParticipantTurns(withParticipant.messages);
-    const replyText = selectScriptedAiReply(
-      session.scriptedAiReplies,
-      participantTurns,
-    );
-
-    replyTimerRef.current = window.setTimeout(() => {
-      streamAiReply(withParticipant, replyText);
-    }, THINKING_DELAY_MS);
+    void (async () => {
+      try {
+        const response = await sendParticipantMessageAction(
+          text,
+          messageId,
+          sessionVersion,
+          `msg-${messageId}`,
+        );
+        setSessionVersion(response.version);
+        const replyText = response.ai_turn?.display_text ?? "";
+        if (replyText) {
+          streamAiReply(withParticipant, replyText);
+        } else {
+          persistSnapshot({
+            ...withParticipant,
+            voiceState: resolveVoiceStateAfterControls(
+              withParticipant.mode,
+              isMuted,
+              withParticipant.micPermission,
+            ),
+          });
+        }
+      } catch {
+        setErrorMessage(copy.conversation.microphoneIssueTitle);
+        persistSnapshot({
+          ...withParticipant,
+          voiceState: resolveVoiceStateAfterControls(
+            withParticipant.mode,
+            isMuted,
+            withParticipant.micPermission,
+          ),
+        });
+      }
+    })();
   }
 
   function handlePrimaryMicPress() {
@@ -418,15 +482,31 @@ export function ConversationShell({ session }: ConversationShellProps) {
       };
       persistSnapshot(saving);
 
-      await new Promise((resolve) => window.setTimeout(resolve, 400));
-      const saved: ConversationSnapshot = {
-        ...saving,
-        saveStatus: "saved",
-      };
-      persistSnapshot(saved);
-      router.push(`/session/${session.sessionId}/complete?reason=${reason}`);
+      const apiReason =
+        reason === "time_expired" ? "time_expired" : "participant_ended";
+      const idempotencyKey = `complete-${session.sessionId}`;
+
+      try {
+        const result = await completeParticipantSessionAction(
+          apiReason,
+          sessionVersion,
+          idempotencyKey,
+        );
+        setSessionVersion(result.session.version);
+        persistSnapshot({
+          ...saving,
+          saveStatus: "saved",
+        });
+        router.push(`${PARTICIPANT_ROUTES.complete}?reason=${reason}`);
+      } catch {
+        persistSnapshot({
+          ...saving,
+          saveStatus: "retrying",
+        });
+        router.push(`${PARTICIPANT_ROUTES.complete}?reason=${reason}`);
+      }
     },
-    [persistSnapshot, router, session.sessionId, snapshot],
+    [persistSnapshot, router, session.sessionId, sessionVersion, snapshot],
   );
 
   useEffect(() => {

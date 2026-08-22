@@ -53,11 +53,18 @@ export interface StudySession {
   sessionId: string;
   studyWave: string;
   status: SessionStatus;
+  version?: number;
+  writerRole?: "writer" | "read_only";
   issue: StudyIssue;
   aiPersona: AiPersona;
   rules: SessionRules;
   openingAiMessage: string;
-  scriptedAiReplies: string[];
+  aiSpeaksFirst?: boolean;
+  preferredMode?: ConversationMode;
+  startedAt?: string | null;
+  endsAt?: string | null;
+  /** @deprecated Mock-only scripted replies; not used with the Study API. */
+  scriptedAiReplies?: string[];
 }
 
 export interface TranscriptMessage {

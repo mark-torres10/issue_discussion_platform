@@ -1,31 +1,6 @@
-import { Suspense } from "react";
-import { notFound } from "next/navigation";
-import CompletePageClient from "./complete-client";
-import { getStudySession } from "@/lib/api/study-backend";
-import { loadUiCopy } from "@/lib/content/loader";
+import { redirect } from "next/navigation";
+import { PARTICIPANT_ROUTES } from "@/lib/api/study-backend";
 
-interface CompletePageProps {
-  params: Promise<{ sessionId: string }>;
-}
-
-export default async function CompletePage({ params }: CompletePageProps) {
-  const { sessionId } = await params;
-  const session = getStudySession(sessionId);
-  if (!session) {
-    notFound();
-  }
-
-  const copy = loadUiCopy();
-
-  return (
-    <Suspense
-      fallback={
-        <div className="px-5 py-8 text-sm text-muted-foreground">
-          {copy.complete.loading}
-        </div>
-      }
-    >
-      <CompletePageClient session={session} />
-    </Suspense>
-  );
+export default function LegacyCompletePage() {
+  redirect(PARTICIPANT_ROUTES.complete);
 }
