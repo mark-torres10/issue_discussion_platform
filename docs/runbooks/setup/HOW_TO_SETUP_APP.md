@@ -4,7 +4,7 @@ Install the tools and packages you need before you start the app.
 
 ## Tools to install
 
-You need Node.js 20.x and npm to run the UI. You need Python 3.12 and uv to run the FastAPI backend, and to run lint or tests at the repo root. uv is the installer for Python packages in this repo. You need the Vercel CLI and the Railway CLI to work with the hosted UI and API.
+You need Node.js 20.x and npm to run the UI. You need Python 3.12 and uv to run the FastAPI backend, and to run lint or tests at the repo root. uv is the installer for Python packages in this repo. You need the Vercel CLI, the Railway CLI, and the Supabase CLI to work with the hosted UI, API, and database. Supabase is the hosted Postgres and auth service for this repo.
 
 - Node.js 20.x
 - npm (included with Node.js)
@@ -12,12 +12,14 @@ You need Node.js 20.x and npm to run the UI. You need Python 3.12 and uv to run 
 - uv
 - Vercel CLI (`vercel`)
 - Railway CLI (`railway`)
+- Supabase CLI (`supabase`)
 
 Install the CLIs if they are missing:
 
 ```bash
 npm install -g vercel
 brew install railway
+brew install supabase/tap/supabase
 ```
 
 ## Install UI packages
@@ -54,7 +56,7 @@ uv sync
 
 ## Hosted projects
 
-This repo is linked to one Vercel project for the Next.js UI in `ui/`, and one Railway project for the FastAPI API in `backend/`. Next.js is the web framework used in `ui/`. GitHub is connected to both hosts.
+This repo is linked to one Vercel project for the Next.js UI in `ui/`, one Railway project for the FastAPI API in `backend/`, and one Supabase project for hosted Postgres. Next.js is the web framework used in `ui/`. GitHub is connected to Vercel and Railway. The Supabase CLI is linked from the repo root.
 
 A pull request deploys a Vercel **preview** (a unique test URL for that branch). Merging into `main` deploys Vercel **production** and rebuilds the Railway `api` service in **production**.
 
@@ -63,6 +65,7 @@ Sign in once on this machine:
 ```bash
 vercel login
 railway login
+supabase login
 ```
 
 Confirm the links:
@@ -72,6 +75,7 @@ vercel whoami
 vercel project inspect issue-discussion-platform --cwd ui --scope marktorres10s-projects
 railway whoami
 railway status
+supabase projects list
 ```
 
 `railway status` must be run from the repo root, which is already linked to the Railway project.
@@ -128,6 +132,41 @@ railway up ./backend --path-as-root --service api --environment production --det
 ```
 
 `--path-as-root` means Railway treats `backend/` as the app root. `--detach` queues the build and returns.
+
+### Supabase (database)
+
+| | |
+| --- | --- |
+| Organization | `mark-torres10's Org` (`ziawajuzavopbzcayxno`) |
+| Project | `issue-discussion-platform` |
+| Project ref | `unlvjgskqzdceihzacng` |
+| Region | `us-east-1` (East US, North Virginia) |
+| API URL | [https://unlvjgskqzdceihzacng.supabase.co](https://unlvjgskqzdceihzacng.supabase.co) |
+| Dashboard | [Supabase project](https://supabase.com/dashboard/project/unlvjgskqzdceihzacng) |
+| CLI config | `supabase/config.toml` at the repo root |
+
+The repo root is already linked. `supabase projects list` marks this project with a filled circle when the link is in place. If the link is missing, run this from the repo root (the database password is the one set when the project was created):
+
+```bash
+supabase link --project-ref unlvjgskqzdceihzacng
+```
+
+Open the dashboard to use the Table Editor, SQL Editor, Auth, and API settings. The API URL is the host for client and server calls to this project.
+
+Get API keys from the dashboard (Project Settings, then API Keys) or from the CLI:
+
+```bash
+supabase projects api-keys --project-ref unlvjgskqzdceihzacng
+```
+
+Use the publishable (anon) key in browser or Next.js `NEXT_PUBLIC_` env vars. Keep the secret (`service_role`) key on the server only. Do not commit keys or the database password. `*.env` and `supabase/.env.local` are gitignored.
+
+A local Docker copy is optional. It is not required to use the hosted project:
+
+```bash
+supabase start
+supabase status
+```
 
 ## After setup
 
