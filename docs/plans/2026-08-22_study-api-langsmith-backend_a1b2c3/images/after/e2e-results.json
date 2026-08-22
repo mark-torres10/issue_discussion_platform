@@ -1,0 +1,41 @@
+[
+  {
+    "name": "GET /health",
+    "pass": true,
+    "notes": "{\"status\":\"ok\",\"commit\":null}"
+  },
+  {
+    "name": "GET /v1/participant-session (no cookie)",
+    "pass": true,
+    "notes": "status=401 code=capability_missing"
+  },
+  {
+    "name": "GET / (home)",
+    "pass": true
+  },
+  {
+    "name": "/invite/<token> → /session",
+    "pass": true,
+    "notes": "http://localhost:3000/session"
+  },
+  {
+    "name": "Session intro content",
+    "pass": true,
+    "notes": "Before you begin"
+  },
+  {
+    "name": "Audio check page",
+    "pass": true,
+    "notes": "Check your audio"
+  },
+  {
+    "name": "Conversation page",
+    "pass": true,
+    "notes": "http://localhost:3000/session/conversation Should universities limit invited speakers who hold contested views?"
+  },
+  {
+    "name": "/session/unavailable (no cookie)",
+    "pass": true,
+    "notes": "http=200 h1=This session is unavailable"
+  }
+]

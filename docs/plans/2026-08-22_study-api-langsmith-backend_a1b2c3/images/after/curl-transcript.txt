@@ -1,0 +1,7 @@
+GET /health -> 200 {"status":"ok","commit":null}
+GET /v1/participant-session (no cookie) -> 401 capability_missing
+POST /v1/participant-access/exchange (demo token) -> 200 writer_role=writer
+GET /v1/participant-session (with cookies) -> 200 status=pending
+UI /invite/<token> -> /session (intro renders)
+UI audio-check -> text mode -> /session/conversation (active, Jordan opening)
+UI /session/unavailable (no cookie) -> 200 (not 500)
