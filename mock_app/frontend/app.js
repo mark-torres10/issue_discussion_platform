@@ -481,6 +481,9 @@ function animateSwipe(direction) {
   });
 }
 
+/** Monotonic token so an in-flight swipe animation cannot advance past an Undo. */
+let swipeGeneration = 0;
+
 function hideUndo() {
   if (undoTimer) {
     window.clearTimeout(undoTimer);
@@ -498,16 +501,22 @@ function scheduleUndo(profile, direction, index) {
   if (btnUndo) {
     btnUndo.hidden = false;
   }
-  undoTimer = window.setTimeout(hideUndo, 3000);
+  // Full window starts when Undo becomes actionable after the next card is shown.
+  undoTimer = window.setTimeout(hideUndo, 4000);
 }
 
-async function undoLastSwipe() {
-  if (!lastSwipe || isSwiping) {
+function undoLastSwipe() {
+  if (!lastSwipe) {
     return;
   }
 
   const { index } = lastSwipe;
   hideUndo();
+  // Invalidate any in-flight swipe completion so it cannot re-advance the deck.
+  swipeGeneration += 1;
+  isSwiping = false;
+  cardStack.classList.remove('swipe-like', 'swipe-pass');
+  void cardStack.offsetWidth;
   currentIndex = index;
   showCurrentProfile();
 }
@@ -519,6 +528,7 @@ async function swipe(direction) {
 
   const profile = deck[currentIndex];
   const swipedIndex = currentIndex;
+  const generation = ++swipeGeneration;
   isSwiping = true;
   btnLike.disabled = true;
   btnPass.disabled = true;
@@ -538,16 +548,29 @@ async function swipe(direction) {
       throw new Error(detail.detail || `Swipe failed (${response.status})`);
     }
 
-    await animateSwipe(direction);
-    currentIndex += 1;
-    scheduleUndo(profile, direction, swipedIndex);
-    showCurrentProfile();
-  } catch (err) {
-    showError(err.message || 'Could not record swipe.');
-    btnLike.disabled = currentIndex >= deck.length;
-    btnPass.disabled = currentIndex >= deck.length;
-  } finally {
     isSwiping = false;
+    await animateSwipe(direction);
+
+    if (generation !== swipeGeneration) {
+      // Undo (or a newer swipe) superseded this animation.
+      return;
+    }
+
+    currentIndex = swipedIndex + 1;
+    showCurrentProfile();
+    // Arm Undo only after the next card is visible so the full timer applies.
+    scheduleUndo(profile, direction, swipedIndex);
+  } catch (err) {
+    if (generation === swipeGeneration) {
+      hideUndo();
+      showError(err.message || 'Could not record swipe.');
+      btnLike.disabled = currentIndex >= deck.length;
+      btnPass.disabled = currentIndex >= deck.length;
+    }
+  } finally {
+    if (generation === swipeGeneration) {
+      isSwiping = false;
+    }
   }
 }
 
