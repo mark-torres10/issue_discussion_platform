@@ -1,0 +1,101 @@
+{
+  "profiles": [
+    {
+      "id": "user-me",
+      "name": "Taylor Morgan",
+      "bio": "Product designer who loves weekend hikes and third-wave coffee.",
+      "photos": ["alex-1.jpg"],
+      "work_history": [
+        {
+          "company": "Northline Studio",
+          "title": "Senior Product Designer",
+          "start_year": 2021,
+          "end_year": null
+        }
+      ],
+      "education_background": [
+        {
+          "school": "Rhode Island School of Design",
+          "degree": "BFA Industrial Design",
+          "year": 2018
+        }
+      ],
+      "linkedin_verified": false,
+      "trust_source_verified": false
+    },
+    {
+      "id": "profile-alex",
+      "name": "Alex Chen",
+      "bio": "Full-stack engineer building tools for climate data. Dog dad.",
+      "photos": ["alex-1.jpg"],
+      "work_history": [
+        {
+          "company": "GreenGrid Labs",
+          "title": "Software Engineer",
+          "start_year": 2019,
+          "end_year": 2022
+        },
+        {
+          "company": "OpenClimate",
+          "title": "Staff Engineer",
+          "start_year": 2022,
+          "end_year": null
+        }
+      ],
+      "education_background": [
+        {
+          "school": "MIT",
+          "degree": "BS Computer Science",
+          "year": 2019
+        }
+      ],
+      "linkedin_verified": true,
+      "trust_source_verified": false
+    },
+    {
+      "id": "profile-jordan",
+      "name": "Jordan Lee",
+      "bio": "ER nurse, marathon runner, and amateur sourdough baker.",
+      "photos": ["jordan-1.jpg"],
+      "work_history": [
+        {
+          "company": "City General Hospital",
+          "title": "Registered Nurse",
+          "start_year": 2017,
+          "end_year": null
+        }
+      ],
+      "education_background": [
+        {
+          "school": "University of Michigan",
+          "degree": "BSN Nursing",
+          "year": 2017
+        },
+        {
+          "school": "Johns Hopkins University",
+          "degree": "MS Public Health",
+          "year": 2020
+        }
+      ],
+      "linkedin_verified": false,
+      "trust_source_verified": true
+    },
+    {
+      "id": "profile-sam",
+      "name": "Sam Rivera",
+      "bio": "Musician and music teacher. Always down for live jazz.",
+      "photos": ["sam-1.jpg"],
+      "work_history": [],
+      "education_background": [
+        {
+          "school": "Berklee College of Music",
+          "degree": "BM Jazz Performance",
+          "year": 2016
+        }
+      ],
+      "linkedin_verified": false,
+      "trust_source_verified": false
+    }
+  ],
+  "swipes": []
+}
