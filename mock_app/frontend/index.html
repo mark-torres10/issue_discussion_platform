@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mock App — Discover</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <h1>Discover</h1>
+      </header>
+
+      <p id="error-message" class="error-message" hidden role="alert"></p>
+
+      <main class="deck-container">
+        <div id="card-stack" class="card-stack">
+          <div class="profile-card">
+            <div id="profile-photos" class="profile-photos" aria-label="Profile photos">
+              <!-- photos injected by app.js -->
+            </div>
+
+            <div class="profile-body">
+              <div class="profile-header">
+                <h2 id="profile-name" class="profile-name">—</h2>
+                <div class="badges" aria-label="Verification badges">
+                  <span id="badge-linkedin" class="badge badge-unverified">LinkedIn: Not verified</span>
+                  <span id="badge-trust-source" class="badge badge-unverified">Trust Source: Not verified</span>
+                </div>
+              </div>
+
+              <p id="profile-bio" class="profile-bio">—</p>
+
+              <section class="profile-section" aria-labelledby="work-heading">
+                <h3 id="work-heading">Work</h3>
+                <ul id="profile-work" class="profile-list">
+                  <li class="placeholder">—</li>
+                </ul>
+              </section>
+
+              <section class="profile-section" aria-labelledby="education-heading">
+                <h3 id="education-heading">Education</h3>
+                <ul id="profile-education" class="profile-list">
+                  <li class="placeholder">—</li>
+                </ul>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div id="empty-state" class="empty-state" hidden>
+          <p>No more profiles</p>
+          <p class="empty-hint">Check back later for new matches.</p>
+        </div>
+      </main>
+
+      <footer class="action-bar">
+        <button id="btn-pass" type="button" class="btn btn-pass" aria-label="Pass">
+          Pass
+        </button>
+        <button id="btn-like" type="button" class="btn btn-like" aria-label="Like">
+          Like
+        </button>
+      </footer>
+    </div>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
