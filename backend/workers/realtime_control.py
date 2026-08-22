@@ -54,6 +54,19 @@ def post_provider_item(
     if not token:
         raise RuntimeError("INTERNAL_WORKER_TOKEN is not set")
 
+    if not base_url:
+        from app.models.realtime import RealtimeProviderItemIngest
+        from app.services.realtime import ingest_provider_item
+
+        result = ingest_provider_item(
+            openai_call_id,
+            RealtimeProviderItemIngest(
+                provider_item_id=provider_item_id,
+                display_text=display_text,
+            ),
+        )
+        return result.model_dump()
+
     url = f"{base_url.rstrip('/')}/internal/v1/realtime/calls/{openai_call_id}/items"
     response = httpx.post(
         url,

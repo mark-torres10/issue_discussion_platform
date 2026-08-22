@@ -298,6 +298,17 @@ def _memory_create_message(
     _store_idempotency(
         state, scope, idempotency_key, request_hash, response.model_dump(mode="json")
     )
+    from app.services.tracing import get_tracing_service, session_domain_from_memory
+
+    domain = session_domain_from_memory(capability.session_id)
+    succeeded_op = _memory_get_operation(capability.session_id, scope, idempotency_key)
+    if succeeded_op is not None:
+        get_tracing_service().on_generation_committed(
+            domain,
+            participant_turn,
+            ai_turn,
+            succeeded_op,
+        )
     return response
 
 
@@ -535,6 +546,21 @@ async def _pg_create_message(
             response_body=response.model_dump(mode="json"),
         )
         await db.commit()
+        committed_op = await gen_repo.get_by_idempotency(
+            capability.session_id, scope=scope, key=idempotency_key
+        )
+        if committed_op is not None:
+            from app.services.tracing import (
+                SessionDomain,
+                get_tracing_service,
+            )
+
+            get_tracing_service().on_generation_committed(
+                SessionDomain(record=record, snapshot=snapshot),
+                participant_turn,
+                ai_turn,
+                committed_op,
+            )
 
     _pg_store_idempotency(
         capability.session_id,

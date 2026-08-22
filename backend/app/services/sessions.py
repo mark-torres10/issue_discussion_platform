@@ -533,6 +533,19 @@ def start_session(
     _store_idempotency(
         state, scope, idempotency_key, request_hash, response.model_dump()
     )
+    from app.services.tracing import SessionDomain, get_tracing_service
+
+    opening_record = None
+    if opening_turn is not None:
+        for turn in state.turns:
+            if turn.turn_id == opening_turn.turn_id:
+                opening_record = turn
+                break
+    get_tracing_service().on_session_started(
+        SessionDomain(record=state.record, snapshot=state.snapshot),
+        preferred_mode=body.preferred_mode,
+        opening_turn=opening_record,
+    )
     return response
 
 
@@ -724,6 +737,11 @@ def complete_session(
         )
         _store_idempotency(
             state, scope, idempotency_key, request_hash, response.model_dump()
+        )
+        from app.services.tracing import SessionDomain, get_tracing_service
+
+        get_tracing_service().on_session_completed(
+            SessionDomain(record=state.record, snapshot=state.snapshot)
         )
         return response
 
@@ -1363,6 +1381,25 @@ async def _pg_start_session(
     _pg_store_idempotency(
         capability.session_id, scope, idempotency_key, request_hash, response.model_dump()
     )
+    from app.services.tracing import SessionDomain, get_tracing_service
+
+    opening_record = None
+    if opening_turn is not None:
+        opening_record = TurnRecord(
+            turn_id=opening_turn.turn_id,
+            session_id=capability.session_id,
+            speaker=opening_turn.speaker,
+            ordinal=opening_turn.ordinal,
+            display_text=opening_turn.display_text,
+            source_mode=opening_turn.source_mode,
+            origin=TurnOrigin.snapshot_opening,
+            recorded_at=opening_turn.recorded_at,
+        )
+    get_tracing_service().on_session_started(
+        SessionDomain(record=record, snapshot=snapshot),
+        preferred_mode=body.preferred_mode,
+        opening_turn=opening_record,
+    )
     return response
 
 
@@ -1794,6 +1831,11 @@ async def _pg_complete_session(
     )
     _pg_store_idempotency(
         capability.session_id, scope, idempotency_key, request_hash, response.model_dump()
+    )
+    from app.services.tracing import SessionDomain, get_tracing_service
+
+    get_tracing_service().on_session_completed(
+        SessionDomain(record=record, snapshot=snapshot)
     )
     return response
 

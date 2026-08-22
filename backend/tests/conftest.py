@@ -19,10 +19,12 @@ from app.sample_data.invitations import (
     SAMPLE_WRITER_INVITATION_TOKEN,
     UNKNOWN_INVITATION_TOKEN,
 )
+from app.integrations.langsmith_exporter import RecordingLangSmithClient
 from app.services.capability import CSRF_HEADER_NAME, IDEMPOTENCY_HEADER_NAME
 from app.services.generation import reset_memory_generation_operations
 from app.services.realtime import reset_memory_realtime_state
 from app.services.sessions import reset_postgres_ephemeral_state, reset_store, seed_postgres_invitation
+from app.services.tracing import reset_tracing_state
 
 MOCK_AI_TEXT = (
     "That is a fair concern. If a speaker spreads ideas that make some students "
@@ -57,6 +59,12 @@ REALTIME_MIGRATION_PATH = (
     / "supabase"
     / "migrations"
     / "20260822120000_realtime_calls.sql"
+)
+TRACE_RUNS_MIGRATION_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "supabase"
+    / "migrations"
+    / "20260822130000_trace_runs.sql"
 )
 
 
@@ -151,6 +159,21 @@ def apply_study_schema(postgres_database_url: str) -> None:
             text=True,
         )
 
+    if not table_exists("trace_runs"):
+        subprocess.run(
+            [
+                "psql",
+                postgres_database_url,
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-f",
+                str(TRACE_RUNS_MIGRATION_PATH),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
 
 @pytest.fixture
 async def postgres_engine(postgres_database_url: str) -> AsyncIterator[AsyncEngine]:
@@ -207,6 +230,10 @@ def client(
     reset_store()
     reset_memory_generation_operations()
     reset_memory_realtime_state()
+    reset_tracing_state()
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
     with TestClient(app) as test_client:
         yield test_client
 
@@ -335,6 +362,23 @@ def worker_auth_headers() -> dict[str, str]:
 def worker_token_env(monkeypatch: pytest.MonkeyPatch) -> str:
     monkeypatch.setenv("INTERNAL_WORKER_TOKEN", WORKER_TOKEN)
     return WORKER_TOKEN
+
+
+@pytest.fixture
+def mock_langsmith_client(monkeypatch: pytest.MonkeyPatch) -> RecordingLangSmithClient:
+    from app.integrations.langsmith_exporter import RecordingLangSmithClient, set_langsmith_client_factory
+
+    client = RecordingLangSmithClient()
+    set_langsmith_client_factory(client)
+    monkeypatch.setenv("TRACE_EXPORT_ENABLED", "true")
+    monkeypatch.setenv("LANGSMITH_API_KEY", "mock")
+    monkeypatch.setenv("LANGSMITH_PROJECT", "issue-discussion-local")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    yield client
+    set_langsmith_client_factory(None)
+    get_settings.cache_clear()
 
 
 @pytest.fixture

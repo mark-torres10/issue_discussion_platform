@@ -284,11 +284,21 @@ def _memory_create_realtime_call(
     _check_memory_rate_limits(capability, capability.session_id)
 
     session_config = _build_realtime_session_config(state.snapshot, state.turns)
-    provider_result = get_realtime_client().create_call(
-        sdp_offer=body.sdp_offer,
-        session_config=session_config,
-        safety_identifier=_safety_identifier(state.record.telemetry_thread_id),
-    )
+    try:
+        provider_result = get_realtime_client().create_call(
+            sdp_offer=body.sdp_offer,
+            session_config=session_config,
+            safety_identifier=_safety_identifier(state.record.telemetry_thread_id),
+        )
+    except Exception as exc:
+        from app.models.tracing import SessionEvent
+        from app.services.tracing import SessionDomain, get_tracing_service
+
+        get_tracing_service().on_connection_failure(
+            SessionDomain(record=state.record, snapshot=state.snapshot),
+            SessionEvent(event_type="realtime_setup_failed", error_code=type(exc).__name__),
+        )
+        raise
     expires_at = utc_now() + REALTIME_CALL_EXPIRY
     _persist_memory_call(
         session_id=capability.session_id,
@@ -338,11 +348,23 @@ async def _pg_create_realtime_call(
 
         turns = await _pg_list_turns(db, capability.session_id)
         session_config = _build_realtime_session_config(snapshot, turns)
-        provider_result = get_realtime_client().create_call(
-            sdp_offer=body.sdp_offer,
-            session_config=session_config,
-            safety_identifier=_safety_identifier(record.telemetry_thread_id),
-        )
+        try:
+            provider_result = get_realtime_client().create_call(
+                sdp_offer=body.sdp_offer,
+                session_config=session_config,
+                safety_identifier=_safety_identifier(record.telemetry_thread_id),
+            )
+        except Exception as exc:
+            from app.models.tracing import SessionEvent
+            from app.services.tracing import SessionDomain, get_tracing_service
+
+            get_tracing_service().on_connection_failure(
+                SessionDomain(record=record, snapshot=snapshot),
+                SessionEvent(
+                    event_type="realtime_setup_failed", error_code=type(exc).__name__
+                ),
+            )
+            raise
         expires_at = utc_now() + REALTIME_CALL_EXPIRY
         now = utc_now()
         call_repo = RealtimeCallRepository(db)
@@ -390,8 +412,30 @@ def ingest_provider_item(
     body: RealtimeProviderItemIngest,
 ) -> RealtimeProviderItemIngestResponse:
     if _postgres_enabled():
-        return _run_async(_pg_ingest_provider_item(openai_call_id, body))
-    return _memory_ingest_provider_item(openai_call_id, body)
+        result = _run_async(_pg_ingest_provider_item(openai_call_id, body))
+    else:
+        result = _memory_ingest_provider_item(openai_call_id, body)
+    if result.created:
+        _trace_voice_turn_committed(openai_call_id, result.turn_id, body)
+    return result
+
+
+def _trace_voice_turn_committed(
+    openai_call_id: str,
+    turn_id: UUID,
+    body: RealtimeProviderItemIngest,
+) -> None:
+    from app.models.tracing import TraceKind
+    from app.services.tracing import get_tracing_service, load_session_domain
+
+    session_id, ai_turn = notify_voice_turn_traced(openai_call_id, turn_id, body)
+    domain = load_session_domain(session_id)
+    get_tracing_service().on_voice_turn_committed(
+        domain,
+        ai_turn,
+        trace_kind=TraceKind.provider_observed_realtime_response,
+        provider_response_id=body.provider_response_id,
+    )
 
 
 def _memory_ingest_provider_item(
@@ -481,3 +525,54 @@ async def _pg_ingest_provider_item(
             turn_id=inserted.turn_id,
             created=True,
         )
+
+
+def notify_voice_turn_traced(
+    openai_call_id: str,
+    turn_id: UUID,
+    body: RealtimeProviderItemIngest,
+) -> tuple[UUID, TurnRecord]:
+    """Return session id and committed turn for tracing hooks."""
+    if _postgres_enabled():
+        return _run_async(_pg_notify_voice_turn_traced(openai_call_id, turn_id, body))
+    call = _memory_calls_by_openai_id.get(openai_call_id)
+    if call is None:
+        raise StudyApiError(
+            status_code=404,
+            error_code="session_not_found",
+            message="Realtime call not found",
+        )
+    state = _get_state(call.session_id)
+    for turn in state.turns:
+        if turn.turn_id == turn_id:
+            return call.session_id, turn
+    raise StudyApiError(
+        status_code=404,
+        error_code="session_not_found",
+        message="Committed turn not found",
+    )
+
+
+async def _pg_notify_voice_turn_traced(
+    openai_call_id: str,
+    turn_id: UUID,
+    body: RealtimeProviderItemIngest,
+) -> tuple[UUID, TurnRecord]:
+    async with _pg_session() as db:
+        call_repo = RealtimeCallRepository(db)
+        call = await call_repo.get_by_openai_call_id(openai_call_id)
+        if call is None:
+            raise StudyApiError(
+                status_code=404,
+                error_code="session_not_found",
+                message="Realtime call not found",
+            )
+        turns = await _pg_list_turns(db, call.session_id)
+    for turn in turns:
+        if turn.turn_id == turn_id:
+            return call.session_id, turn
+    raise StudyApiError(
+        status_code=404,
+        error_code="session_not_found",
+        message="Committed turn not found",
+    )
