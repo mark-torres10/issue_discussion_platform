@@ -477,7 +477,7 @@ function animateSwipe(direction) {
     window.setTimeout(() => {
       hideSwipeToast();
       resolve();
-    }, 300);
+    }, 1000);
   });
 }
 
@@ -506,8 +506,9 @@ async function undoLastSwipe() {
     return;
   }
 
+  const { index } = lastSwipe;
   hideUndo();
-  currentIndex = lastSwipe.index;
+  currentIndex = index;
   showCurrentProfile();
 }
 
