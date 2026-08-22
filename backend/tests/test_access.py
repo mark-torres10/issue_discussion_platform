@@ -1,3 +1,6 @@
+from fastapi.testclient import TestClient
+
+from app.main import app
 from app.sample_data.invitations import UNKNOWN_INVITATION_TOKEN
 from tests.conftest import EXCHANGE_PATH, SESSION_PATH, exchange_invitation
 
@@ -31,6 +34,13 @@ class TestParticipantAccess:
         assert second.response.json()["writer_role"] == "read_only"
 
     def test_protected_route_requires_cookie(self, client) -> None:
+        response = client.get(SESSION_PATH)
+
+        assert response.status_code == 401
+        assert response.json()["error_code"] == "capability_missing"
+
+    def test_main_app_session_unauthorized(self) -> None:
+        client = TestClient(app, raise_server_exceptions=False)
         response = client.get(SESSION_PATH)
 
         assert response.status_code == 401

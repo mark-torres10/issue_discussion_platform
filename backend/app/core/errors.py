@@ -8,6 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from app.models.errors import ApiError
+from app.services.sessions import StudyApiError
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
@@ -38,6 +39,22 @@ def register_exception_handlers(app: FastAPI) -> None:
                 error_code="validation_error",
                 message="Request validation failed",
                 retryable=False,
+            ).model_dump(),
+        )
+
+    @app.exception_handler(StudyApiError)
+    async def study_api_error_handler(
+        request: Request, exc: StudyApiError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=ApiError(
+                request_id=_request_id(request),
+                error_code=exc.error_code,
+                message=exc.message,
+                retryable=exc.retryable,
+                current_version=exc.current_version,
+                session_status=exc.session_status,
             ).model_dump(),
         )
 
