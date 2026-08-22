@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.config import CURRENT_USER_ID, PROFILES_JSON
-from app.models.profile import Profile, SwipeDirection, SwipeRecord
+from app.models.profile import Profile, SwipeDirection, SwipeRecord, VerificationKind
 
 _store: DataStore | None = None
 
@@ -101,6 +101,19 @@ class DataStore:
     def list_swipes(self) -> list[SwipeRecord]:
         data = self._ensure_loaded()
         return [SwipeRecord.model_validate(swipe) for swipe in data.get("swipes", [])]
+
+    def set_verification(self, kind: VerificationKind, verified: bool = True) -> Profile:
+        data = self._ensure_loaded()
+        for raw in data.get("profiles", []):
+            if raw["id"] != CURRENT_USER_ID:
+                continue
+            if kind == VerificationKind.LINKEDIN:
+                raw["linkedin_verified"] = verified
+            elif kind == VerificationKind.TRUST_SOURCE:
+                raw["trust_source_verified"] = verified
+            self.save(data)
+            return Profile.model_validate(raw)
+        raise KeyError(f"Current user profile not found: {CURRENT_USER_ID}")
 
 
 def get_data_store() -> DataStore:
