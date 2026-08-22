@@ -1,3 +1,5 @@
+"""Participant session lifecycle, capability checks, and transcript persistence."""
+
 import asyncio
 import hashlib
 import secrets
@@ -77,6 +79,12 @@ def _run_async(coro: Coroutine[Any, Any, T]) -> T:
 
 
 class StudyApiError(Exception):
+    """Structured API failure surfaced to HTTP handlers.
+
+  Carries an HTTP status, machine-readable ``error_code``, and optional
+  conflict metadata such as ``current_version`` or ``session_status``.
+  """
+
     def __init__(
         self,
         *,
@@ -96,6 +104,7 @@ class StudyApiError(Exception):
 
 
 def utc_now() -> datetime:
+    """Return the current UTC timestamp with timezone awareness."""
     return datetime.now(UTC)
 
 
@@ -115,6 +124,8 @@ def _new_uuid7() -> UUID:
 
 
 class CapabilityContext:
+    """Authenticated participant capability for one study session."""
+
     def __init__(
         self,
         *,
@@ -130,12 +141,16 @@ class CapabilityContext:
 
 
 class IdempotencyRecord:
+    """Cached idempotent response keyed by request body hash."""
+
     def __init__(self, request_hash: str, response_body: dict[str, Any]) -> None:
         self.request_hash = request_hash
         self.response_body = response_body
 
 
 class SessionState:
+    """In-memory aggregate of one session's record, transcript, and side effects."""
+
     def __init__(self) -> None:
         self.record: SessionRecord
         self.snapshot: ConfigurationSnapshot
@@ -149,6 +164,8 @@ class SessionState:
 
 
 class MemorySessionStore:
+    """Process-local session store used when Postgres is disabled."""
+
     def __init__(self) -> None:
         self.sessions: dict[UUID, SessionState] = {}
         self._seed()
@@ -170,10 +187,12 @@ _complete_lock = threading.Lock()
 
 
 def get_store() -> MemorySessionStore:
+    """Return the shared in-memory session store."""
     return _store
 
 
 def reset_store() -> None:
+    """Clear and re-seed the in-memory session store."""
     _store.reset()
 
 
@@ -364,6 +383,28 @@ def _turn_to_view(turn: TurnRecord) -> TranscriptTurnView:
 def exchange_access(
     body: AccessExchangeRequest,
 ) -> tuple[ParticipantSessionView, CapabilityContext, bool]:
+    """Exchange an invitation token for a session view and participant capability.
+
+    The first successful exchange for a session receives writer access; later
+    exchanges receive read-only access and a transfer nonce for lease handoff.
+
+    Parameters
+    ----------
+    body : AccessExchangeRequest
+        Invitation token presented by the participant client.
+
+    Returns
+    -------
+    tuple[ParticipantSessionView, CapabilityContext, bool]
+        Session projection, issued capability, and a flag that is always
+        ``True`` for successful exchanges.
+
+    Raises
+    ------
+    StudyApiError
+        If the invitation is unknown, the session is unavailable, or the
+        post-completion grace period has ended.
+    """
     if _postgres_enabled():
         return _run_async(_pg_exchange_access(body))
     token_hash = hash_invitation_token(body.invitation_token)
@@ -415,6 +456,7 @@ def exchange_access(
 
 
 def get_session_view(capability: CapabilityContext) -> ParticipantSessionView:
+    """Return the participant-visible session state for a capability."""
     if _postgres_enabled():
         return _run_async(_pg_get_session_view(capability))
     state = _get_state(capability.session_id)
@@ -428,6 +470,16 @@ def record_consent(
     idempotency_key: str,
     request_hash: str,
 ) -> ParticipantSessionView:
+    """Record consent or withdrawal and bump the session version.
+
+    Withdrawal clears the active writer lease. Replayed idempotent requests
+    return the stored response without mutating state.
+
+    Raises
+    ------
+    StudyApiError
+        On version conflict, missing session, or non-writable capability.
+    """
     if _postgres_enabled():
         return _run_async(_pg_record_consent(capability, body, idempotency_key=idempotency_key, request_hash=request_hash))
     state = _get_state(capability.session_id)
@@ -472,6 +524,18 @@ def start_session(
     idempotency_key: str,
     request_hash: str,
 ) -> SessionStartResponse:
+    """Activate a pending or paused session and optionally emit an opening turn.
+
+    When the snapshot requires the AI to speak first, a single opening turn is
+    appended before activation. Already-active sessions return the current view
+    without error.
+
+    Raises
+    ------
+    StudyApiError
+        If consent is missing, the capability is read-only, or the session
+        cannot transition from its current status.
+    """
     if _postgres_enabled():
         return _run_async(_pg_start_session(capability, body, idempotency_key=idempotency_key, request_hash=request_hash))
     state = _get_state(capability.session_id)
@@ -558,6 +622,17 @@ def create_message(
     idempotency_key: str,
     request_hash: str,
 ) -> MessageResponse:
+    """Append a participant text turn and a scripted AI reply in memory mode.
+
+    Postgres deployments delegate to the generation service for model-backed
+    replies. Idempotent replays return the prior response.
+
+    Raises
+    ------
+    StudyApiError
+        If the session is not active, consent is missing, the client message id
+        is reused, or optimistic concurrency checks fail.
+    """
     if _postgres_enabled():
         return _run_async(_pg_create_message(capability, body, idempotency_key=idempotency_key, request_hash=request_hash))
     state = _get_state(capability.session_id)
@@ -643,6 +718,16 @@ def record_observations(
     idempotency_key: str,
     request_hash: str,
 ) -> ObservationBatchResponse:
+    """Accept a batch of client observations as untrusted telemetry.
+
+    Observations are stored for later export but do not affect transcript
+    ordering or generation behavior.
+
+    Raises
+    ------
+    StudyApiError
+        On version conflict or non-writable capability.
+    """
     if _postgres_enabled():
         return _run_async(_pg_record_observations(capability, body, idempotency_key=idempotency_key, request_hash=request_hash))
     state = _get_state(capability.session_id)
@@ -677,6 +762,7 @@ def record_observations(
 
 
 def get_transcript(capability: CapabilityContext) -> TranscriptResponse:
+    """Return committed transcript turns visible to the participant."""
     if _postgres_enabled():
         return _run_async(_pg_get_transcript(capability))
     state = _get_state(capability.session_id)
@@ -691,6 +777,17 @@ def complete_session(
     idempotency_key: str,
     request_hash: str,
 ) -> SessionCompleteResponse:
+    """Mark a session completed and persist any recovery observations.
+
+    Completion is idempotent: repeated requests after completion return the
+    saved turn count without error. A process lock serializes concurrent
+    completion attempts in memory mode.
+
+    Raises
+    ------
+    StudyApiError
+        On version conflict or non-writable capability.
+    """
     if _postgres_enabled():
         return _run_async(_pg_complete_session(capability, body, idempotency_key=idempotency_key, request_hash=request_hash))
     state = _get_state(capability.session_id)
@@ -755,6 +852,14 @@ def pause_session(
     idempotency_key: str,
     request_hash: str,
 ) -> ParticipantSessionView:
+    """Pause an active session when the snapshot allows resume.
+
+    Raises
+    ------
+    StudyApiError
+        If pause is disallowed, the session is not active, or concurrency
+        checks fail.
+    """
     if _postgres_enabled():
         return _run_async(_pg_pause_session(capability, body, idempotency_key=idempotency_key, request_hash=request_hash))
     state = _get_state(capability.session_id)
@@ -798,6 +903,13 @@ def transfer_writer_lease(
     idempotency_key: str,
     request_hash: str,
 ) -> ParticipantSessionView:
+    """Promote a read-only capability to writer using a transfer nonce.
+
+    Raises
+    ------
+    StudyApiError
+        If the nonce is invalid or the capability cannot write.
+    """
     if _postgres_enabled():
         return _run_async(_pg_transfer_writer_lease(capability, body, idempotency_key=idempotency_key, request_hash=request_hash))
     state = _get_state(capability.session_id)
@@ -830,6 +942,16 @@ def create_realtime_call(
     idempotency_key: str,
     request_hash: str,
 ) -> RealtimeCallCreateResponse:
+    """Return a stub SDP answer for realtime setup in memory mode.
+
+    Postgres deployments delegate to the realtime service for provider-backed
+    calls. The session must be active and consented.
+
+    Raises
+    ------
+    StudyApiError
+        If the session is not active or concurrency checks fail.
+    """
     if _postgres_enabled():
         return _run_async(_pg_create_realtime_call(capability, body, idempotency_key=idempotency_key, request_hash=request_hash))
     state = _get_state(capability.session_id)
@@ -870,6 +992,7 @@ _pg_transfer_nonces: dict[UUID, dict[str, str]] = {}
 
 
 def reset_postgres_ephemeral_state() -> None:
+    """Clear process-local idempotency and transfer-nonce caches for Postgres tests."""
     _pg_idempotency.clear()
     _pg_transfer_nonces.clear()
 
@@ -2020,6 +2143,7 @@ async def _pg_create_realtime_call(
 def build_demo_configuration_snapshot_record(
     *, study_id: UUID, snapshot_id: UUID | None = None
 ) -> "ConfigurationSnapshotRecord":
+    """Build a demo configuration snapshot row for integration tests."""
     from app.repositories._types import ConfigurationSnapshotRecord
 
     return ConfigurationSnapshotRecord(
@@ -2043,6 +2167,7 @@ def build_demo_configuration_snapshot_record(
 
 
 async def seed_postgres_invitation(invitation_token: str) -> UUID:
+    """Create a demo invitation in Postgres and return its session id."""
     from app.repositories.invitations import DEFAULT_STUDY_ID, InvitationRepository
 
     async with _pg_session() as db:

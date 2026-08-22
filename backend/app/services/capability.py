@@ -1,3 +1,5 @@
+"""Signed participant capability cookies and request idempotency helpers."""
+
 import os
 
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
@@ -15,14 +17,23 @@ def _serializer() -> URLSafeTimedSerializer:
 
 
 def sign_capability_payload(payload: dict[str, str]) -> str:
+    """Return a time-limited signed token for a capability payload."""
     return _serializer().dumps(payload)
 
 
 def load_capability_payload(signed_value: str) -> dict[str, str]:
+    """Verify and decode a signed capability token.
+
+    Raises
+    ------
+    BadSignature, SignatureExpired
+        If the token is invalid or expired.
+    """
     return _serializer().loads(signed_value)
 
 
 def capability_cookie_attributes(*, cross_site: bool) -> dict[str, str | bool | int]:
+    """Return HttpOnly cookie attributes for participant capabilities."""
     return {
         "httponly": True,
         "secure": True,

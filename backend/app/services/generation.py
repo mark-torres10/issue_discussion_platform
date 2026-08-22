@@ -1,3 +1,5 @@
+"""Text message generation with idempotent OpenAI-backed replies."""
+
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -63,6 +65,7 @@ _memory_operations: dict[tuple[UUID, str, str], _MemoryGenerationOperation] = {}
 
 
 def reset_memory_generation_operations() -> None:
+    """Clear in-memory generation operation records used in tests."""
     _memory_operations.clear()
 
 
@@ -123,6 +126,19 @@ def create_message(
     idempotency_key: str,
     request_hash: str,
 ) -> MessageResponse:
+    """Append a participant text turn and generate an AI reply.
+
+    Persists both turns, tracks the generation operation, and emits tracing
+    hooks on success. Replayed idempotent requests return the stored response;
+    conflicting request bodies raise an idempotency error.
+
+    Raises
+    ------
+    StudyApiError
+        If the session is not writable or active, consent is missing, the
+        client message id is reused, the snapshot model mismatches
+        configuration, or the provider call fails.
+    """
     if _postgres_enabled():
         return _run_async(
             _pg_create_message(

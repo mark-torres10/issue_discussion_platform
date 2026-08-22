@@ -1,3 +1,5 @@
+"""Staff export of committed session transcripts."""
+
 from uuid import UUID
 
 from sqlalchemy import text
@@ -56,6 +58,16 @@ async def export_session(
     *,
     request_id: str | None = None,
 ) -> SessionExportManifest:
+    """Build a staff-facing export manifest for one session's committed turns.
+
+    Verifies study membership and export role before reading canonical turns.
+    Appends an audit event describing the export.
+
+    Raises
+    ------
+    StudyApiError
+        If the session is missing or the staff user lacks export permission.
+    """
     from app.db.session import get_db_session
 
     async with get_db_session() as db:

@@ -1,4 +1,4 @@
-"""Study API tracing hooks for LangSmith export."""
+"""LangSmith tracing hooks for Study API session lifecycle and turns."""
 
 from __future__ import annotations
 
@@ -32,11 +32,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class SessionDomain:
+    """Session record paired with its frozen configuration snapshot."""
+
     record: SessionRecord
     snapshot: ConfigurationSnapshot
 
 
 class StudyTracingService(Protocol):
+    """Contract for exporting Study API events to LangSmith."""
+
     def on_session_started(
         self,
         session: SessionDomain,
@@ -73,11 +77,13 @@ _exporter_override: TraceExporter | None = None
 
 
 def set_trace_exporter(exporter: TraceExporter | None) -> None:
+    """Replace the process-wide trace exporter, typically in tests."""
     global _exporter_override
     _exporter_override = exporter
 
 
 def reset_tracing_state() -> None:
+    """Clear in-memory trace run mappings and exporter overrides."""
     reset_memory_trace_runs()
     set_trace_exporter(None)
 
@@ -177,6 +183,8 @@ def _safe_export(action: str, callback: object) -> None:
 
 
 class DefaultStudyTracingService:
+    """Export Study API lifecycle and turn events via configured LangSmith envelopes."""
+
     def on_session_started(
         self,
         session: SessionDomain,
@@ -294,10 +302,12 @@ _tracing_service: StudyTracingService = DefaultStudyTracingService()
 
 
 def get_tracing_service() -> StudyTracingService:
+    """Return the active tracing service implementation."""
     return _tracing_service
 
 
 def session_domain_from_memory(session_id: UUID) -> SessionDomain:
+    """Load session record and snapshot from the in-memory store."""
     from app.services.sessions import _get_state
 
     state = _get_state(session_id)
@@ -305,6 +315,7 @@ def session_domain_from_memory(session_id: UUID) -> SessionDomain:
 
 
 def session_domain_from_postgres(session_id: UUID) -> SessionDomain:
+    """Load session record and snapshot from Postgres."""
     from app.services.sessions import _pg_load_session_bundle, _pg_session
 
     async def _load() -> SessionDomain:
@@ -316,6 +327,7 @@ def session_domain_from_postgres(session_id: UUID) -> SessionDomain:
 
 
 def load_session_domain(session_id: UUID) -> SessionDomain:
+    """Load a session domain from the active persistence backend."""
     if _postgres_enabled():
         return session_domain_from_postgres(session_id)
     return session_domain_from_memory(session_id)

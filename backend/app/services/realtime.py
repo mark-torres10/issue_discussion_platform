@@ -1,3 +1,5 @@
+"""Realtime voice call setup and provider turn ingestion."""
+
 import hashlib
 from dataclasses import dataclass
 from datetime import timedelta
@@ -60,6 +62,8 @@ REALTIME_CALL_EXPIRY = timedelta(minutes=5)
 
 @dataclass(frozen=True)
 class ControlHandoff:
+    """Pending realtime control-plane handoff for a provider call."""
+
     realtime_call_id: UUID
     openai_call_id: str
     session_id: UUID
@@ -74,6 +78,7 @@ _control_handoff_queue: list[ControlHandoff] = []
 
 
 def reset_memory_realtime_state() -> None:
+    """Clear in-memory realtime call state used in tests."""
     _memory_calls_by_openai_id.clear()
     _memory_active_by_session.clear()
     _memory_setup_attempts.clear()
@@ -83,10 +88,12 @@ def reset_memory_realtime_state() -> None:
 
 
 def get_memory_openai_call_id_for_session(session_id: UUID) -> str | None:
+    """Return the active OpenAI call id for a session in memory mode."""
     return _memory_active_by_session.get(session_id)
 
 
 def drain_control_handoff_queue() -> list[ControlHandoff]:
+    """Return and clear pending control handoffs queued during call setup."""
     items = list(_control_handoff_queue)
     _control_handoff_queue.clear()
     return items
@@ -239,6 +246,18 @@ def create_realtime_call(
     idempotency_key: str,
     request_hash: str,
 ) -> RealtimeCallCreateResponse:
+    """Negotiate a realtime voice call and return the provider SDP answer.
+
+    Enforces per-capability and per-session setup rate limits, invalidates any
+    prior active call for the session, and queues a control handoff for the
+    worker plane.
+
+    Raises
+    ------
+    StudyApiError
+        If the session is not active or consented, rate limits are exceeded,
+        or provider setup fails.
+    """
     if _postgres_enabled():
         return _run_async(
             _pg_create_realtime_call(
@@ -411,6 +430,16 @@ def ingest_provider_item(
     openai_call_id: str,
     body: RealtimeProviderItemIngest,
 ) -> RealtimeProviderItemIngestResponse:
+    """Commit a provider-observed AI voice turn for a realtime call.
+
+    Duplicate provider item ids return the existing turn without creating a
+    new row. New turns trigger tracing hooks after persistence.
+
+    Raises
+    ------
+    StudyApiError
+        If the realtime call is unknown.
+    """
     if _postgres_enabled():
         result = _run_async(_pg_ingest_provider_item(openai_call_id, body))
     else:
@@ -532,7 +561,27 @@ def notify_voice_turn_traced(
     turn_id: UUID,
     body: RealtimeProviderItemIngest,
 ) -> tuple[UUID, TurnRecord]:
-    """Return session id and committed turn for tracing hooks."""
+    """Resolve the session and committed turn for post-ingest tracing.
+
+    Parameters
+    ----------
+    openai_call_id : str
+        Provider call identifier from realtime setup.
+    turn_id : UUID
+        Canonical turn id returned by :func:`ingest_provider_item`.
+    body : RealtimeProviderItemIngest
+        Provider payload associated with the turn.
+
+    Returns
+    -------
+    tuple[UUID, TurnRecord]
+        Session id and the committed turn record.
+
+    Raises
+    ------
+    StudyApiError
+        If the call or turn cannot be found.
+    """
     if _postgres_enabled():
         return _run_async(_pg_notify_voice_turn_traced(openai_call_id, turn_id, body))
     call = _memory_calls_by_openai_id.get(openai_call_id)
