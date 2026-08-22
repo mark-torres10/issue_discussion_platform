@@ -71,7 +71,9 @@ def _postgres_enabled() -> bool:
 
 
 def _run_async(coro: Coroutine[Any, Any, T]) -> T:
-    return asyncio.run(coro)
+    from app.db.engine import run_async
+
+    return run_async(coro)
 
 
 class StudyApiError(Exception):

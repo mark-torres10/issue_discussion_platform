@@ -13,7 +13,7 @@ from app.api.router import api_router
 from app.core.cors import register_cors
 from app.core.dependencies import register_study_api_error_handler
 from app.core.errors import register_exception_handlers, register_middleware
-from app.db.engine import reset_engine
+from app.db.engine import reset_engine, run_async
 from app.models.enums import FrozenModel
 from app.sample_data.invitations import (
     SAMPLE_WRITER_INVITATION_TOKEN,
@@ -302,9 +302,7 @@ def storage_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[TestClient, None, None]:
     if storage_mode == "postgres":
-        import asyncio
-
-        asyncio.run(seed_postgres_invitation(invitation_token))
+        run_async(seed_postgres_invitation(invitation_token))
     with TestClient(app) as test_client:
         yield test_client
 
