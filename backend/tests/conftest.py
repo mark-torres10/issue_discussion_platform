@@ -21,6 +21,7 @@ from app.sample_data.invitations import (
 )
 from app.services.capability import CSRF_HEADER_NAME, IDEMPOTENCY_HEADER_NAME
 from app.services.generation import reset_memory_generation_operations
+from app.services.realtime import reset_memory_realtime_state
 from app.services.sessions import reset_postgres_ephemeral_state, reset_store, seed_postgres_invitation
 
 MOCK_AI_TEXT = (
@@ -36,6 +37,8 @@ START_PATH = "/v1/participant-session/start"
 COMPLETE_PATH = "/v1/participant-session/complete"
 OBSERVATIONS_PATH = "/v1/participant-session/observations"
 REALTIME_PATH = "/v1/participant-session/realtime/calls"
+INTERNAL_REALTIME_ITEMS_PATH = "/internal/v1/realtime/calls/{openai_call_id}/items"
+WORKER_TOKEN = "test-token"
 
 MIGRATION_PATH = (
     Path(__file__).resolve().parents[2]
@@ -48,6 +51,12 @@ GENERATION_MIGRATION_PATH = (
     / "supabase"
     / "migrations"
     / "20260822110000_generation_operations.sql"
+)
+REALTIME_MIGRATION_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "supabase"
+    / "migrations"
+    / "20260822120000_realtime_calls.sql"
 )
 
 
@@ -127,6 +136,21 @@ def apply_study_schema(postgres_database_url: str) -> None:
             text=True,
         )
 
+    if not table_exists("realtime_calls"):
+        subprocess.run(
+            [
+                "psql",
+                postgres_database_url,
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-f",
+                str(REALTIME_MIGRATION_PATH),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
 
 @pytest.fixture
 async def postgres_engine(postgres_database_url: str) -> AsyncIterator[AsyncEngine]:
@@ -173,13 +197,16 @@ def app() -> FastAPI:
 
 
 @pytest.fixture
-def client(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
+def client(
+    app: FastAPI, monkeypatch: pytest.MonkeyPatch, mock_openai_realtime
+) -> Generator[TestClient, None, None]:
     monkeypatch.setenv("STORAGE_MODE", "memory")
     monkeypatch.setenv("OPENAI_API_KEY", "mock")
     monkeypatch.setenv("OPENAI_TEXT_MODEL", "gpt-4.1-mini")
     monkeypatch.delenv("DATABASE_URL", raising=False)
     reset_store()
     reset_memory_generation_operations()
+    reset_memory_realtime_state()
     with TestClient(app) as test_client:
         yield test_client
 
@@ -298,6 +325,45 @@ def auth_headers(csrf_token: str, idempotency_key: str | None = None) -> dict[st
     if idempotency_key is not None:
         headers[IDEMPOTENCY_HEADER_NAME] = idempotency_key
     return headers
+
+
+def worker_auth_headers() -> dict[str, str]:
+    return {"X-Worker-Token": WORKER_TOKEN}
+
+
+@pytest.fixture
+def worker_token_env(monkeypatch: pytest.MonkeyPatch) -> str:
+    monkeypatch.setenv("INTERNAL_WORKER_TOKEN", WORKER_TOKEN)
+    return WORKER_TOKEN
+
+
+@pytest.fixture
+def mock_openai_realtime(monkeypatch: pytest.MonkeyPatch):
+    from app.integrations import openai_realtime
+
+    class MockRealtimeClient:
+        call_count = 0
+
+        def create_call(
+            self,
+            *,
+            sdp_offer: str,
+            session_config: dict[str, object],
+            safety_identifier: str,
+        ) -> openai_realtime.RealtimeCallResult:
+            MockRealtimeClient.call_count += 1
+            call_id = f"rtc_mock_{MockRealtimeClient.call_count}"
+            return openai_realtime.RealtimeCallResult(
+                sdp_answer="v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=mock-realtime\r\n",
+                openai_call_id=call_id,
+                location_header=f"/v1/realtime/calls/{call_id}",
+            )
+
+    MockRealtimeClient.call_count = 0
+    client = MockRealtimeClient()
+    openai_realtime.set_realtime_client_factory(lambda: client)
+    yield client
+    openai_realtime.set_realtime_client_factory(None)
 
 
 def start_session(

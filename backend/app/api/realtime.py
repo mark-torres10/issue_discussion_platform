@@ -7,7 +7,8 @@ from app.core.dependencies import (
     study_error_response,
 )
 from app.models.realtime import RealtimeCallCreateRequest, RealtimeCallCreateResponse
-from app.services.sessions import StudyApiError, create_realtime_call
+from app.services.realtime import create_realtime_call
+from app.services.sessions import StudyApiError
 from app.services.transcripts import request_hash
 
 router = APIRouter(prefix="/v1/participant-session", tags=["participant-realtime"])
