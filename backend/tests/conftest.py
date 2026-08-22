@@ -20,7 +20,13 @@ from app.sample_data.invitations import (
     UNKNOWN_INVITATION_TOKEN,
 )
 from app.services.capability import CSRF_HEADER_NAME, IDEMPOTENCY_HEADER_NAME
+from app.services.generation import reset_memory_generation_operations
 from app.services.sessions import reset_postgres_ephemeral_state, reset_store, seed_postgres_invitation
+
+MOCK_AI_TEXT = (
+    "That is a fair concern. If a speaker spreads ideas that make some students "
+    "feel unsafe, how should a university decide when speech crosses that line?"
+)
 
 EXCHANGE_PATH = "/v1/participant-access/exchange"
 SESSION_PATH = "/v1/participant-session"
@@ -36,6 +42,12 @@ MIGRATION_PATH = (
     / "supabase"
     / "migrations"
     / "20260822100000_study_core_schema.sql"
+)
+GENERATION_MIGRATION_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "supabase"
+    / "migrations"
+    / "20260822110000_generation_operations.sql"
 )
 
 
@@ -78,26 +90,42 @@ def postgres_database_url() -> str:
 def apply_study_schema(postgres_database_url: str) -> None:
     import subprocess
 
-    exists = subprocess.run(
-        [
-            "psql",
-            postgres_database_url,
-            "-tAc",
-            "SELECT to_regclass('public.sessions') IS NOT NULL",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    if exists.stdout.strip() == "t":
-        return
+    def table_exists(table_name: str) -> bool:
+        result = subprocess.run(
+            [
+                "psql",
+                postgres_database_url,
+                "-tAc",
+                f"SELECT to_regclass('public.{table_name}') IS NOT NULL",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip() == "t"
 
-    subprocess.run(
-        ["psql", postgres_database_url, "-v", "ON_ERROR_STOP=1", "-f", str(MIGRATION_PATH)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    if not table_exists("sessions"):
+        subprocess.run(
+            ["psql", postgres_database_url, "-v", "ON_ERROR_STOP=1", "-f", str(MIGRATION_PATH)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    if not table_exists("generation_operations"):
+        subprocess.run(
+            [
+                "psql",
+                postgres_database_url,
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-f",
+                str(GENERATION_MIGRATION_PATH),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
 
 @pytest.fixture
@@ -147,10 +175,43 @@ def app() -> FastAPI:
 @pytest.fixture
 def client(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
     monkeypatch.setenv("STORAGE_MODE", "memory")
+    monkeypatch.setenv("OPENAI_API_KEY", "mock")
+    monkeypatch.setenv("OPENAI_TEXT_MODEL", "gpt-4.1-mini")
     monkeypatch.delenv("DATABASE_URL", raising=False)
     reset_store()
+    reset_memory_generation_operations()
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def mock_openai_client(monkeypatch: pytest.MonkeyPatch):
+    from types import SimpleNamespace
+
+    from app.integrations import openai_client
+
+    class MockChatCompletions:
+        call_count = 0
+
+        def create(self, **kwargs: object) -> SimpleNamespace:
+            MockChatCompletions.call_count += 1
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(message=SimpleNamespace(content=MOCK_AI_TEXT)),
+                ]
+            )
+
+    class MockOpenAIClient:
+        def __init__(self) -> None:
+            self.chat = SimpleNamespace(completions=MockChatCompletions())
+
+    MockChatCompletions.call_count = 0
+    client = MockOpenAIClient()
+    monkeypatch.setenv("OPENAI_API_KEY", "mock")
+    monkeypatch.setenv("OPENAI_TEXT_MODEL", "gpt-4.1-mini")
+    openai_client.set_openai_client_factory(lambda: client)  # type: ignore[return-value]
+    yield client
+    openai_client.set_openai_client_factory(None)
 
 
 @pytest.fixture(params=["memory", "postgres"])

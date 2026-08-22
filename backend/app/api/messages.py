@@ -7,7 +7,8 @@ from app.core.dependencies import (
     study_error_response,
 )
 from app.models.transcript import MessageCreate, MessageResponse
-from app.services.sessions import StudyApiError, create_message
+from app.services.generation import create_message
+from app.services.sessions import StudyApiError
 from app.services.transcripts import request_hash
 
 router = APIRouter(prefix="/v1/participant-session", tags=["participant-messages"])
