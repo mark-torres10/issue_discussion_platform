@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mock App — Discover</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <h1>Discover</h1>
+        <p id="deck-counter" class="deck-counter" hidden aria-live="polite"></p>
+        <button
+          id="btn-toggle-verification"
+          type="button"
+          class="btn btn-secondary btn-toggle-verification"
+        >
+          Verification
+        </button>
+      </header>
+
+      <div
+        id="verification-modal"
+        class="verification-modal"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="verification-title"
+      >
+        <div id="verification-backdrop" class="verification-backdrop" tabindex="-1"></div>
+        <section id="verification-panel" class="verification-panel">
+          <div class="verification-panel-top">
+            <h2 id="verification-title">Your verification</h2>
+            <button
+              id="btn-close-verification"
+              type="button"
+              class="btn-close"
+              aria-label="Close verification"
+            >
+              &times;
+            </button>
+          </div>
+
+          <p class="verification-value">
+            Verified profiles help others trust who you are. Upload proof once — we review it locally in this demo.
+          </p>
+
+          <div id="current-user-badges" class="badges badges-me" aria-label="Your verification badges">
+            <span id="me-badge-linkedin" class="badge badge-unverified" data-kind="linkedin">
+              <span class="badge-icon" aria-hidden="true">in</span>
+              <span class="badge-label">LinkedIn</span>
+            </span>
+            <span id="me-badge-trust-source" class="badge badge-unverified" data-kind="trust">
+              <span class="badge-icon" aria-hidden="true">✓</span>
+              <span class="badge-label">Trust Source</span>
+            </span>
+          </div>
+
+          <div class="verification-tabs" role="tablist" aria-label="Verification type">
+            <button
+              id="tab-linkedin"
+              type="button"
+              class="verification-tab active"
+              role="tab"
+              aria-selected="true"
+              aria-controls="panel-linkedin"
+            >
+              LinkedIn
+            </button>
+            <button
+              id="tab-trust"
+              type="button"
+              class="verification-tab"
+              role="tab"
+              aria-selected="false"
+              aria-controls="panel-trust"
+            >
+              Trust Source
+            </button>
+          </div>
+
+          <div id="panel-linkedin" class="verification-tab-panel" role="tabpanel">
+            <p id="linkedin-status" class="verification-status" hidden role="status"></p>
+            <p class="verification-hint">
+              Upload a screenshot of your LinkedIn profile or a short selfie video holding your ID.
+            </p>
+            <div class="file-inputs">
+              <label class="file-label" for="linkedin-photo">Photo</label>
+              <input id="linkedin-photo" type="file" accept="image/jpeg,image/png,image/webp" />
+              <label class="file-label" for="linkedin-video">Video</label>
+              <input id="linkedin-video" type="file" accept="video/mp4,video/webm" />
+            </div>
+            <div id="linkedin-preview" class="media-preview" hidden></div>
+            <button id="btn-submit-linkedin" type="button" class="btn btn-primary">
+              Submit LinkedIn verification
+            </button>
+          </div>
+
+          <div id="panel-trust" class="verification-tab-panel" role="tabpanel" hidden>
+            <p id="trust-status" class="verification-status" hidden role="status"></p>
+            <p class="verification-hint">
+              Upload a document or video that confirms your background (employer letter, credential, etc.).
+            </p>
+            <div class="file-inputs">
+              <label class="file-label" for="trust-photo">Photo</label>
+              <input id="trust-photo" type="file" accept="image/jpeg,image/png,image/webp" />
+              <label class="file-label" for="trust-video">Video</label>
+              <input id="trust-video" type="file" accept="video/mp4,video/webm" />
+            </div>
+            <div id="trust-preview" class="media-preview" hidden></div>
+            <button id="btn-submit-trust" type="button" class="btn btn-primary">
+              Submit Trust Source verification
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <p id="error-message" class="error-message" hidden role="alert"></p>
+
+      <main class="deck-container">
+        <div id="card-stack" class="card-stack">
+          <div id="swipe-toast" class="swipe-toast" hidden aria-live="polite"></div>
+          <div class="profile-card">
+            <div id="profile-photos" class="profile-photos" aria-label="Profile photos">
+              <!-- photos injected by app.js -->
+            </div>
+
+            <div class="profile-body">
+              <div class="profile-header">
+                <div class="profile-name-row">
+                  <h2 id="profile-name" class="profile-name">—</h2>
+                  <div class="badges badges-inline" aria-label="Verification badges">
+                    <span id="badge-linkedin" class="badge badge-unverified" data-kind="linkedin" title="LinkedIn not verified">
+                      <span class="badge-icon" aria-hidden="true">in</span>
+                    </span>
+                    <span id="badge-trust-source" class="badge badge-unverified" data-kind="trust" title="Trust Source not verified">
+                      <span class="badge-icon" aria-hidden="true">✓</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <p id="profile-bio" class="profile-bio">—</p>
+
+              <section class="profile-section" aria-labelledby="work-heading">
+                <h3 id="work-heading">Work</h3>
+                <ul id="profile-work" class="profile-list">
+                  <li class="placeholder">—</li>
+                </ul>
+              </section>
+
+              <section class="profile-section" aria-labelledby="education-heading">
+                <h3 id="education-heading">Education</h3>
+                <ul id="profile-education" class="profile-list">
+                  <li class="placeholder">—</li>
+                </ul>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div id="empty-state" class="empty-state" hidden>
+          <div class="empty-icon" aria-hidden="true">✓</div>
+          <p>You've seen everyone</p>
+          <p class="empty-hint">No more profiles in the deck right now. Reload the page to reset swipes in this demo.</p>
+        </div>
+      </main>
+
+      <footer id="action-bar" class="action-bar">
+        <button id="btn-undo" type="button" class="btn btn-undo" hidden aria-label="Undo last swipe">
+          Undo
+        </button>
+        <button id="btn-pass" type="button" class="btn btn-pass" aria-label="Pass (P)">
+          Pass
+        </button>
+        <button id="btn-like" type="button" class="btn btn-like" aria-label="Like (L)">
+          Like
+        </button>
+      </footer>
+      <p class="keyboard-hint" id="keyboard-hint">Tip: press <kbd>L</kbd> to like, <kbd>P</kbd> to pass</p>
+    </div>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
