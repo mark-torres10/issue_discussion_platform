@@ -1,0 +1,9 @@
+# Fallback when GitHub auto-deploy runs from the repo root without source.rootDirectory=/backend.
+# Prefer backend/railway.toml with source.rootDirectory=/backend in Railway service config.
+[build]
+builder = "RAILPACK"
+
+[deploy]
+startCommand = "cd backend && fastapi run app/main.py --host 0.0.0.0 --port ${PORT:-8000}"
+healthcheckPath = "/health"
+restartPolicyType = "ON_FAILURE"
