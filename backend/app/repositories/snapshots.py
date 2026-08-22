@@ -1,3 +1,5 @@
+"""Postgres persistence for immutable configuration snapshots."""
+
 from uuid import UUID
 
 from sqlalchemy import text
@@ -9,10 +11,19 @@ from app.repositories._types import ConfigurationSnapshotRecord
 
 
 class SnapshotRepository:
+    """Reads and writes frozen study configuration snapshots."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, snapshot: ConfigurationSnapshotRecord) -> ConfigurationSnapshotRecord:
+        """Insert a configuration snapshot and commit the transaction.
+
+        Raises
+        ------
+        RepositoryConflict
+            If a snapshot with the same primary key already exists.
+        """
         try:
             await self._session.execute(
                 text(
@@ -89,6 +100,13 @@ class SnapshotRepository:
         return snapshot
 
     async def get(self, snapshot_id: UUID) -> ConfigurationSnapshotRecord:
+        """Return the configuration snapshot for ``snapshot_id``.
+
+        Raises
+        ------
+        RepositoryNotFound
+            If no snapshot exists with the given id.
+        """
         result = await self._session.execute(
             text(
                 "SELECT * FROM configuration_snapshots "

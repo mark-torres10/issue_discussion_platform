@@ -1,3 +1,5 @@
+"""Postgres persistence for append-only audit events."""
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,10 +7,13 @@ from app.repositories._types import AuditEventRecord, new_uuid7
 
 
 class AuditRepository:
+    """Appends immutable audit events for staff and system actions."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def append_event(self, event: AuditEventRecord) -> AuditEventRecord:
+        """Persist an audit event and return it with a generated id when needed."""
         audit_event_id = event.audit_event_id or new_uuid7()
         await self._session.execute(
             text(

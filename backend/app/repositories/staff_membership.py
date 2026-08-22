@@ -1,3 +1,5 @@
+"""Postgres persistence for study staff membership rows."""
+
 from uuid import UUID
 
 from sqlalchemy import text
@@ -10,17 +12,17 @@ StaffRole = str
 
 
 class StaffMembershipRecord(FrozenModel):
-    membership_id: UUID
-    study_id: UUID
-    user_id: str
-    role: StaffRole
+    """Immutable row binding a staff user to a study role."""
 
 
 class StaffMembershipRepository:
+    """Reads and upserts staff membership for authorization checks."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def get(self, study_id: UUID, user_id: str) -> StaffMembershipRecord | None:
+        """Return membership for ``user_id`` on ``study_id``, if any."""
         result = await self._session.execute(
             text(
                 """
@@ -49,6 +51,13 @@ class StaffMembershipRepository:
         user_id: str,
         role: StaffRole,
     ) -> StaffMembershipRecord:
+        """Create or update the role for ``user_id`` on ``study_id``.
+
+        Raises
+        ------
+        RuntimeError
+            If the row cannot be read back after upsert.
+        """
         membership_id = new_uuid7()
         await self._session.execute(
             text(

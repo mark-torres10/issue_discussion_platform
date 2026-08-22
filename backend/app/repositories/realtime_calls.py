@@ -1,30 +1,26 @@
+"""Postgres persistence for OpenAI realtime call bookkeeping."""
+
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import FrozenModel
 
 
 class RealtimeCallRecord(FrozenModel):
-    realtime_call_id: UUID
-    session_id: UUID
-    openai_call_id: str
-    capability_id: str
-    status: str
-    expires_at: datetime
-    invalidated_at: datetime | None = None
-    control_handoff_enqueued_at: datetime | None = None
-    created_at: datetime | None = None
+    """Immutable row describing one OpenAI realtime call for a session."""
 
 
 class RealtimeCallRepository:
+    """Tracks realtime call setup, lookup, and invalidation per session."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, record: RealtimeCallRecord) -> RealtimeCallRecord:
+        """Insert a realtime call row and commit the transaction."""
         await self._session.execute(
             text(
                 """
@@ -66,6 +62,7 @@ class RealtimeCallRepository:
     async def invalidate_active_for_session(
         self, session_id: UUID, *, invalidated_at: datetime
     ) -> None:
+        """Mark all active realtime calls for ``session_id`` as invalidated."""
         await self._session.execute(
             text(
                 """
@@ -82,6 +79,7 @@ class RealtimeCallRepository:
         await self._session.commit()
 
     async def get_by_openai_call_id(self, openai_call_id: str) -> RealtimeCallRecord | None:
+        """Return the realtime call row for ``openai_call_id``, if present."""
         result = await self._session.execute(
             text("SELECT * FROM realtime_calls WHERE openai_call_id = :openai_call_id"),
             {"openai_call_id": openai_call_id},
@@ -92,6 +90,7 @@ class RealtimeCallRepository:
         return _row_to_record(row)
 
     async def count_successful_setups(self, session_id: UUID) -> int:
+        """Return how many realtime call rows exist for ``session_id``."""
         result = await self._session.execute(
             text(
                 """

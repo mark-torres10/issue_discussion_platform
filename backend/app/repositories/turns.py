@@ -1,3 +1,5 @@
+"""Postgres persistence for canonical transcript turns."""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -6,33 +8,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import FrozenModel, InteractionMode, Speaker, TurnOrigin
-from app.models.enums import FrozenModel
 from app.repositories import RepositoryConflict
 
 
 class CanonicalTurnRecord(FrozenModel):
-    turn_id: UUID
-    session_id: UUID
-    speaker: Speaker
-    ordinal: int
-    display_text: str
-    source_mode: InteractionMode
-    origin: TurnOrigin
-    interrupted: bool = False
-    recorded_at: datetime
-    provider_item_id: str | None = None
-    provider_response_id: str | None = None
-    client_event_id: UUID | None = None
-    verification_status: str = "verified"
-    generated_text: str | None = None
-    delivered_text: str | None = None
-    content_hash: str = ""
-    provider_created_at: datetime | None = None
-    client_observed_at: datetime | None = None
-    schema_version: int = 1
+    """Immutable row representing one speaker turn in the canonical transcript."""
 
 
 class TurnRepository:
+    """Inserts canonical turns with idempotent conflict handling."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
@@ -60,6 +45,16 @@ class TurnRepository:
         client_observed_at: datetime | None = None,
         schema_version: int = 1,
     ) -> CanonicalTurnRecord:
+        """Insert a turn or return the existing row when the idempotency key matches.
+
+        Duplicate ``turn_id`` or ``provider_item_id`` values return the stored row
+        when the content hash matches; otherwise a conflict is raised.
+
+        Raises
+        ------
+        RepositoryConflict
+            If the same identifiers are reused with different content.
+        """
         existing = await self._get_by_turn_id(turn_id)
         if existing is not None:
             if existing.content_hash != content_hash:

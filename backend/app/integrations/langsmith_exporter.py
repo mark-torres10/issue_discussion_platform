@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class LangSmithRunClient(Protocol):
+    """Minimal LangSmith client surface used for trace export."""
+
     def create_run(self, *, run_id: UUID, payload: dict[str, Any]) -> None: ...
 
 
@@ -37,11 +39,13 @@ _langsmith_client_factory: LangSmithRunClient | None = None
 
 
 def set_langsmith_client_factory(factory: LangSmithRunClient | None) -> None:
+    """Replace the default LangSmith client, typically in tests."""
     global _langsmith_client_factory
     _langsmith_client_factory = factory
 
 
 def get_langsmith_client() -> LangSmithRunClient:
+    """Return a LangSmith client, honoring any injected test double."""
     if _langsmith_client_factory is not None:
         return _langsmith_client_factory
     from langsmith import Client
@@ -57,6 +61,8 @@ def get_langsmith_client() -> LangSmithRunClient:
 
 
 class TraceExporter(Protocol):
+    """Exports study trace envelopes to an observability backend."""
+
     def export_conversation_turn(self, envelope: TraceEnvelope) -> None: ...
 
     def export_lifecycle(
@@ -69,6 +75,8 @@ class TraceExporter(Protocol):
 
 
 class NoopExporter:
+    """Discards trace exports when LangSmith is disabled."""
+
     def export_conversation_turn(self, envelope: TraceEnvelope) -> None:
         return None
 
@@ -84,6 +92,8 @@ class NoopExporter:
 
 
 class LangSmithExporter:
+    """Posts allowlisted trace envelopes to LangSmith as chain runs."""
+
     def __init__(self, client: LangSmithRunClient, *, project_name: str) -> None:
         self._client = client
         self._project_name = project_name
@@ -104,6 +114,7 @@ class LangSmithExporter:
         self._client.create_run(run_id=envelope.langsmith_run_id, payload=payload)
 
     def export_conversation_turn(self, envelope: TraceEnvelope) -> None:
+        """Export a canonical conversation turn trace."""
         self._post(
             envelope,
             run_type="chain",
@@ -113,6 +124,7 @@ class LangSmithExporter:
     def export_lifecycle(
         self, envelope: TraceEnvelope, *, lifecycle_event: str
     ) -> None:
+        """Export a session lifecycle trace with the given event name."""
         metadata = envelope_to_metadata(envelope)
         metadata["lifecycle_event"] = lifecycle_event
         validate_metadata(metadata)
@@ -129,6 +141,7 @@ class LangSmithExporter:
     def export_connection_failure(
         self, envelope: TraceEnvelope, *, event_type: str
     ) -> None:
+        """Export a realtime connection failure trace."""
         self._post(
             envelope,
             run_type="chain",
@@ -137,6 +150,7 @@ class LangSmithExporter:
 
 
 def build_exporter(*, enabled: bool, project_name: str) -> TraceExporter:
+    """Return a LangSmith exporter or a no-op implementation."""
     if not enabled:
         return NoopExporter()
     return LangSmithExporter(get_langsmith_client(), project_name=project_name)

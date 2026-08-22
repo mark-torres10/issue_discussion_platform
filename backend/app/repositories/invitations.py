@@ -1,3 +1,5 @@
+"""Postgres persistence for study invitations and their bootstrap sessions."""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -22,6 +24,8 @@ DEFAULT_STUDY_ID = UUID("018f5a20-7c3a-7000-8000-000000000099")
 
 
 class InvitationRepository:
+    """Creates invitations together with their configuration snapshot and session."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
@@ -33,6 +37,16 @@ class InvitationRepository:
         configuration_snapshot: ConfigurationSnapshotRecord,
         expires_at: datetime | None = None,
     ) -> InvitationRecord:
+        """Provision a pending session and persist a hashed invitation token.
+
+        The snapshot, session, and invitation rows are written in one flow.
+        Only the token hash is stored; the raw token is never persisted.
+
+        Raises
+        ------
+        RepositoryConflict
+            If an invitation with the same token hash already exists.
+        """
         token_hash = hash_invitation_token(invitation_token)
         study = study_id or DEFAULT_STUDY_ID
         invitation_id = new_uuid7()
@@ -102,6 +116,7 @@ class InvitationRepository:
         )
 
     async def get_by_token_hash(self, token_hash: str) -> InvitationRecord | None:
+        """Return the invitation for ``token_hash``, or ``None`` when absent."""
         result = await self._session.execute(
             text("SELECT * FROM invitations WHERE token_hash = :token_hash"),
             {"token_hash": token_hash},
@@ -121,6 +136,7 @@ class InvitationRepository:
         )
 
     async def token_hash_exists(self, token_hash: str) -> bool:
+        """Return whether an invitation row exists for ``token_hash``."""
         result = await self._session.execute(
             text(
                 "SELECT 1 FROM invitations WHERE token_hash = :token_hash LIMIT 1"

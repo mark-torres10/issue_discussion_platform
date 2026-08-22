@@ -1,3 +1,5 @@
+"""Postgres persistence for participant session records."""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -11,10 +13,13 @@ from app.repositories._types import new_uuid7
 
 
 class SessionRepository:
+    """Reads and writes ``sessions`` rows with optimistic versioning."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def create(self, record: SessionRecord) -> SessionRecord:
+        """Insert a new session and commit the transaction."""
         await self._session.execute(
             text(
                 """
@@ -78,6 +83,13 @@ class SessionRepository:
         return record
 
     async def get(self, session_id: UUID) -> SessionRecord:
+        """Return the session for ``session_id``.
+
+        Raises
+        ------
+        RepositoryNotFound
+            If no session exists with the given id.
+        """
         result = await self._session.execute(
             text("SELECT * FROM sessions WHERE session_id = :session_id"),
             {"session_id": session_id},
@@ -90,6 +102,15 @@ class SessionRepository:
     async def increment_version(
         self, session_id: UUID, *, expected_version: int
     ) -> SessionRecord:
+        """Bump the session version when ``expected_version`` matches.
+
+        Raises
+        ------
+        RepositoryNotFound
+            If the session does not exist.
+        RepositoryConflict
+            If another writer already advanced the version.
+        """
         result = await self._session.execute(
             text(
                 """
@@ -128,7 +149,16 @@ class SessionRepository:
         completed_at: datetime,
         recovery_observations: list[object],
     ) -> SessionRecord:
-        """Stub until Step 4 wires the full completion transaction."""
+        """Mark a session completed and release any writer lease.
+
+        ``recovery_observations`` is reserved for a later completion
+        transaction that will persist recovery telemetry alongside status.
+
+        Raises
+        ------
+        RepositoryConflict
+            If ``expected_version`` does not match the stored row.
+        """
         _ = recovery_observations
         result = await self._session.execute(
             text(

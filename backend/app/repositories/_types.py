@@ -1,3 +1,5 @@
+"""Shared row shapes and identifier helpers for Postgres repositories."""
+
 import hashlib
 import os
 import time
@@ -10,6 +12,7 @@ from app.models.enums import FrozenModel
 
 
 def new_uuid7() -> UUID:
+    """Return a time-ordered UUID v7 for repository primary keys."""
     timestamp_ms = int(time.time() * 1000)
     rand_a = int.from_bytes(os.urandom(2), "big") & 0x0FFF
     rand_b = int.from_bytes(os.urandom(8), "big") & 0x3FFFFFFFFFFFFFFF
@@ -22,10 +25,12 @@ def new_uuid7() -> UUID:
 
 
 def hash_invitation_token(token: str) -> str:
+    """Return the SHA-256 hex digest of an invitation token."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 class ConfigurationSnapshotRecord(FrozenModel):
+    """Immutable study configuration captured at session start."""
     configuration_snapshot_id: UUID
     study_id: UUID
     study_wave: str = Field(max_length=64)
@@ -48,6 +53,7 @@ class ConfigurationSnapshotRecord(FrozenModel):
 
 
 class InvitationRecord(FrozenModel):
+    """Immutable invitation row linking a token hash to a pending session."""
     invitation_id: UUID
     study_id: UUID
     session_id: UUID
@@ -59,6 +65,7 @@ class InvitationRecord(FrozenModel):
 
 
 class AuditEventRecord(FrozenModel):
+    """Immutable staff or system action recorded for compliance review."""
     audit_event_id: UUID
     study_id: UUID
     actor_type: str = Field(max_length=64)

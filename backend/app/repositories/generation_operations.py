@@ -1,3 +1,5 @@
+"""Postgres persistence for text-generation idempotency records."""
+
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -11,6 +13,8 @@ from app.repositories._types import new_uuid7
 
 
 class GenerationOperationRepository:
+    """Tracks generation operations keyed by session-scoped idempotency tuples."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
@@ -40,6 +44,7 @@ class GenerationOperationRepository:
         scope: str,
         key: str,
     ) -> GenerationOperation | None:
+        """Return the operation for the idempotency tuple, if one exists."""
         result = await self._session.execute(
             text(
                 """
@@ -68,6 +73,7 @@ class GenerationOperationRepository:
         participant_turn_id: UUID,
         operation_id: UUID | None = None,
     ) -> GenerationOperation:
+        """Insert a new operation in the ``accepted`` state."""
         now = datetime.now(UTC)
         op_id = operation_id or new_uuid7()
         await self._session.execute(
@@ -120,6 +126,7 @@ class GenerationOperationRepository:
         error_message: str | None = None,
         response_body: dict[str, Any] | None = None,
     ) -> None:
+        """Update operation status and optional result fields."""
         now = datetime.now(UTC)
         await self._session.execute(
             text(

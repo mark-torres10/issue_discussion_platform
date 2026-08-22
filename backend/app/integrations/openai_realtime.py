@@ -1,3 +1,5 @@
+"""OpenAI Realtime call setup over the HTTP calls API."""
+
 import json
 import os
 from collections.abc import Callable
@@ -13,12 +15,16 @@ DEFAULT_REALTIME_MODEL = "gpt-4o-realtime-preview"
 
 @dataclass(frozen=True)
 class RealtimeCallResult:
+    """SDP answer and identifiers returned from a realtime call setup."""
+
     sdp_answer: str
     openai_call_id: str
     location_header: str
 
 
 class RealtimeClient:
+    """Creates OpenAI realtime calls from an SDP offer and session config."""
+
     def create_call(
         self,
         *,
@@ -26,6 +32,15 @@ class RealtimeClient:
         session_config: dict[str, Any],
         safety_identifier: str,
     ) -> RealtimeCallResult:
+        """Exchange an SDP offer for an answer and OpenAI call id.
+
+        Raises
+        ------
+        RuntimeError
+            If ``OPENAI_API_KEY`` is unset or the response omits a call id.
+        httpx.HTTPStatusError
+            If the OpenAI API returns a non-success status.
+        """
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
             raise RuntimeError("OPENAI_API_KEY is not set")
@@ -63,17 +78,20 @@ _client_factory: Callable[[], RealtimeClient] | None = None
 
 
 def set_realtime_client_factory(factory: Callable[[], RealtimeClient] | None) -> None:
+    """Replace the default realtime client factory, typically in tests."""
     global _client_factory
     _client_factory = factory
 
 
 def get_realtime_client() -> RealtimeClient:
+    """Return a realtime client, honoring any injected factory."""
     if _client_factory is not None:
         return _client_factory()
     return RealtimeClient()
 
 
 def get_configured_realtime_model() -> str:
+    """Return the configured realtime model name."""
     return os.environ.get("OPENAI_REALTIME_MODEL", DEFAULT_REALTIME_MODEL)
 
 

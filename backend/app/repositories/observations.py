@@ -1,16 +1,26 @@
+"""Postgres persistence for client and connection observations."""
+
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.observations import ObservationCreate
+
+
 class ObservationRepository:
+    """Appends session observations with idempotent inserts."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def insert_observations(
         self, session_id: UUID, observations: list[ObservationCreate]
     ) -> list[ObservationCreate]:
+        """Insert observations for ``session_id``, skipping duplicate ids.
+
+        Conflicts on ``observation_id`` are ignored so retries remain safe.
+        """
         for observation in observations:
             await self._session.execute(
                 text(

@@ -1,3 +1,5 @@
+"""Postgres persistence for LangSmith trace run bookkeeping."""
+
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -9,12 +11,15 @@ from app.repositories._types import new_uuid7
 
 
 class TraceRunRepository:
+    """Maps canonical turns and export kinds to LangSmith root run ids."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def get_by_canonical_turn(
         self, canonical_turn_id: UUID, *, export_kind: TraceExportKind
     ) -> TraceRunRecord | None:
+        """Return the trace run for a turn and export kind, if recorded."""
         result = await self._session.execute(
             text(
                 """
@@ -54,6 +59,11 @@ class TraceRunRepository:
         canonical_turn_id: UUID | None = None,
         trace_kind: TraceKind | None = None,
     ) -> TraceRunRecord:
+        """Insert or update the LangSmith root run id for a trace export key.
+
+        When ``canonical_turn_id`` is set, conflicts on the turn and export kind
+        pair update the stored LangSmith root run id in place.
+        """
         now = datetime.now(UTC)
         trace_run_id = new_uuid7()
         await self._session.execute(
@@ -102,12 +112,14 @@ _memory_trace_runs: dict[tuple[UUID, TraceExportKind], TraceRunRecord] = {}
 
 
 def reset_memory_trace_runs() -> None:
+    """Clear the in-memory trace run store used in tests."""
     _memory_trace_runs.clear()
 
 
 def memory_get_trace_run(
     canonical_turn_id: UUID, *, export_kind: TraceExportKind
 ) -> TraceRunRecord | None:
+    """Return a trace run from the in-memory store, if present."""
     return _memory_trace_runs.get((canonical_turn_id, export_kind))
 
 
@@ -119,6 +131,7 @@ def memory_upsert_trace_run(
     canonical_turn_id: UUID | None = None,
     trace_kind: TraceKind | None = None,
 ) -> TraceRunRecord:
+    """Insert or return an existing trace run in the in-memory store."""
     now = datetime.now(UTC)
     if canonical_turn_id is not None:
         key = (canonical_turn_id, export_kind)

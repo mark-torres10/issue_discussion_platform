@@ -68,6 +68,13 @@ class EnvelopeValidationError(ValueError):
 
 
 def validate_metadata(metadata: dict[str, Any]) -> None:
+    """Reject metadata keys outside the LangSmith export allowlist.
+
+    Raises
+    ------
+    EnvelopeValidationError
+        If a forbidden or unknown key is present, or compat ids disagree.
+    """
     for key in metadata:
         if key in FORBIDDEN_METADATA_KEYS:
             raise EnvelopeValidationError(
@@ -86,6 +93,7 @@ def validate_metadata(metadata: dict[str, Any]) -> None:
 
 
 def envelope_to_metadata(envelope: TraceEnvelope) -> dict[str, str]:
+    """Build allowlisted LangSmith metadata from a trace envelope."""
     metadata = {
         "thread_id": str(envelope.telemetry_thread_id),
         "session_id_compat": str(envelope.telemetry_thread_id),
@@ -147,6 +155,7 @@ def build_text_generation_envelope(
     operation: GenerationOperation,
     langsmith_run_id: UUID,
 ) -> TraceEnvelope:
+    """Build a LangSmith envelope for an instrumented text generation turn."""
     inputs_messages: list[dict[str, str]] = []
     if participant_turn is not None:
         inputs_messages.append(
@@ -193,6 +202,7 @@ def build_voice_turn_envelope(
     langsmith_run_id: UUID,
     provider_response_id: str | None = None,
 ) -> TraceEnvelope:
+    """Build a LangSmith envelope for a provider-observed voice turn."""
     meta = _snapshot_metadata(record, snapshot)
     return TraceEnvelope(
         trace_schema_version=TRACE_SCHEMA_VERSION,
@@ -235,6 +245,7 @@ def build_lifecycle_envelope(
     lifecycle_event: str,
     interaction_mode: InteractionMode = InteractionMode.voice,
 ) -> TraceEnvelope:
+    """Build a LangSmith envelope for a session lifecycle event."""
     meta = _snapshot_metadata(record, snapshot)
     return TraceEnvelope(
         trace_schema_version=TRACE_SCHEMA_VERSION,
@@ -273,6 +284,7 @@ def build_connection_failure_envelope(
     event_type: str,
     error_code: str | None,
 ) -> TraceEnvelope:
+    """Build a LangSmith envelope for a realtime connection failure."""
     meta = _snapshot_metadata(record, snapshot)
     return TraceEnvelope(
         trace_schema_version=TRACE_SCHEMA_VERSION,
