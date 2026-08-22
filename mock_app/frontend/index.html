@@ -10,7 +10,77 @@
     <div id="app">
       <header class="app-header">
         <h1>Discover</h1>
+        <button
+          id="btn-toggle-verification"
+          type="button"
+          class="btn btn-secondary btn-toggle-verification"
+        >
+          Verification
+        </button>
       </header>
+
+      <section id="verification-panel" class="verification-panel" hidden>
+        <div class="verification-header">
+          <h2>Your verification</h2>
+          <div id="current-user-badges" class="badges" aria-label="Your verification badges">
+            <span id="me-badge-linkedin" class="badge badge-unverified">LinkedIn: Not verified</span>
+            <span id="me-badge-trust-source" class="badge badge-unverified">Trust Source: Not verified</span>
+          </div>
+        </div>
+
+        <p id="verification-status" class="verification-status" hidden role="status"></p>
+
+        <div class="verification-tabs" role="tablist" aria-label="Verification type">
+          <button
+            id="tab-linkedin"
+            type="button"
+            class="verification-tab active"
+            role="tab"
+            aria-selected="true"
+            aria-controls="panel-linkedin"
+          >
+            LinkedIn
+          </button>
+          <button
+            id="tab-trust"
+            type="button"
+            class="verification-tab"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-trust"
+          >
+            Trust Source
+          </button>
+        </div>
+
+        <div id="panel-linkedin" class="verification-tab-panel" role="tabpanel">
+          <p class="verification-hint">Upload a photo and/or video to verify your LinkedIn profile.</p>
+          <div class="file-inputs">
+            <label class="file-label" for="linkedin-photo">Photo</label>
+            <input id="linkedin-photo" type="file" accept="image/jpeg,image/png,image/webp" />
+            <label class="file-label" for="linkedin-video">Video</label>
+            <input id="linkedin-video" type="file" accept="video/mp4,video/webm" />
+          </div>
+          <div id="linkedin-preview" class="media-preview" hidden></div>
+          <button id="btn-submit-linkedin" type="button" class="btn btn-primary">
+            Submit LinkedIn verification
+          </button>
+        </div>
+
+        <div id="panel-trust" class="verification-tab-panel" role="tabpanel" hidden>
+          <p class="verification-hint">Upload a photo and/or video to verify your Trust Source.</p>
+          <div class="file-inputs">
+            <label class="file-label" for="trust-photo">Photo</label>
+            <input id="trust-photo" type="file" accept="image/jpeg,image/png,image/webp" />
+            <label class="file-label" for="trust-video">Video</label>
+            <input id="trust-video" type="file" accept="video/mp4,video/webm" />
+          </div>
+          <div id="trust-preview" class="media-preview" hidden></div>
+          <button id="btn-submit-trust" type="button" class="btn btn-primary">
+            Submit Trust Source verification
+          </button>
+        </div>
+      </section>
 
       <p id="error-message" class="error-message" hidden role="alert"></p>
 

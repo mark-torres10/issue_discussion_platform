@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.config import (
+    FRONTEND_DIR,
     LINKEDIN_UPLOAD_DIR,
     PHOTOS_DIR,
     TRUST_SOURCE_UPLOAD_DIR,
@@ -42,3 +43,6 @@ app.mount(
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

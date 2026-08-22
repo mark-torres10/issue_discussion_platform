@@ -18,6 +18,189 @@ const badgeTrustSource = document.getElementById('badge-trust-source');
 const btnLike = document.getElementById('btn-like');
 const btnPass = document.getElementById('btn-pass');
 
+const verificationPanel = document.getElementById('verification-panel');
+const btnToggleVerification = document.getElementById('btn-toggle-verification');
+const verificationStatus = document.getElementById('verification-status');
+const meBadgeLinkedin = document.getElementById('me-badge-linkedin');
+const meBadgeTrustSource = document.getElementById('me-badge-trust-source');
+const tabLinkedin = document.getElementById('tab-linkedin');
+const tabTrust = document.getElementById('tab-trust');
+const panelLinkedin = document.getElementById('panel-linkedin');
+const panelTrust = document.getElementById('panel-trust');
+const linkedinPhoto = document.getElementById('linkedin-photo');
+const linkedinVideo = document.getElementById('linkedin-video');
+const trustPhoto = document.getElementById('trust-photo');
+const trustVideo = document.getElementById('trust-video');
+const linkedinPreview = document.getElementById('linkedin-preview');
+const trustPreview = document.getElementById('trust-preview');
+const btnSubmitLinkedin = document.getElementById('btn-submit-linkedin');
+const btnSubmitTrust = document.getElementById('btn-submit-trust');
+
+/** @type {object | null} */
+let currentUser = null;
+
+function setVerificationStatus(message, type) {
+  if (!verificationStatus) {
+    return;
+  }
+  verificationStatus.textContent = message;
+  verificationStatus.hidden = !message;
+  verificationStatus.classList.remove('success', 'error');
+  if (type) {
+    verificationStatus.classList.add(type);
+  }
+}
+
+function clearVerificationStatus() {
+  setVerificationStatus('', null);
+}
+
+function updateMeBadges(profile) {
+  if (meBadgeLinkedin) {
+    setBadge(meBadgeLinkedin, 'LinkedIn', Boolean(profile.linkedin_verified));
+  }
+  if (meBadgeTrustSource) {
+    setBadge(meBadgeTrustSource, 'Trust Source', Boolean(profile.trust_source_verified));
+  }
+}
+
+async function fetchMe() {
+  const response = await fetch(`${API_BASE}/api/me`);
+  if (!response.ok) {
+    throw new Error(`Failed to load current user (${response.status})`);
+  }
+  const profile = await response.json();
+  currentUser = profile;
+  updateMeBadges(profile);
+  return profile;
+}
+
+function showVerificationTab(tab) {
+  const isLinkedin = tab === 'linkedin';
+  tabLinkedin.classList.toggle('active', isLinkedin);
+  tabTrust.classList.toggle('active', !isLinkedin);
+  tabLinkedin.setAttribute('aria-selected', String(isLinkedin));
+  tabTrust.setAttribute('aria-selected', String(!isLinkedin));
+  panelLinkedin.hidden = !isLinkedin;
+  panelTrust.hidden = isLinkedin;
+}
+
+function toggleVerificationPanel() {
+  const isHidden = verificationPanel.hidden;
+  verificationPanel.hidden = !isHidden;
+  if (!isHidden) {
+    return;
+  }
+  clearVerificationStatus();
+  fetchMe().catch((err) => {
+    setVerificationStatus(err.message || 'Could not load your profile.', 'error');
+  });
+}
+
+function renderMediaPreview(container, photoInput, videoInput) {
+  container.innerHTML = '';
+  const files = [];
+  if (photoInput?.files?.[0]) {
+    files.push(photoInput.files[0]);
+  }
+  if (videoInput?.files?.[0]) {
+    files.push(videoInput.files[0]);
+  }
+
+  if (!files.length) {
+    container.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+
+  for (const file of files) {
+    const url = URL.createObjectURL(file);
+    if (file.type.startsWith('video/')) {
+      const video = document.createElement('video');
+      video.src = url;
+      video.controls = true;
+      video.muted = true;
+      container.appendChild(video);
+    } else {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = 'Upload preview';
+      container.appendChild(img);
+    }
+  }
+}
+
+async function uploadVerification(kind) {
+  const isLinkedin = kind === 'linkedin';
+  const photoInput = isLinkedin ? linkedinPhoto : trustPhoto;
+  const videoInput = isLinkedin ? linkedinVideo : trustVideo;
+  const submitBtn = isLinkedin ? btnSubmitLinkedin : btnSubmitTrust;
+
+  const formData = new FormData();
+  if (photoInput?.files?.[0]) {
+    formData.append('photo', photoInput.files[0]);
+  }
+  if (videoInput?.files?.[0]) {
+    formData.append('video', videoInput.files[0]);
+  }
+
+  if (!formData.has('photo') && !formData.has('video')) {
+    setVerificationStatus('Please select a photo and/or video to upload.', 'error');
+    return;
+  }
+
+  clearVerificationStatus();
+  submitBtn.disabled = true;
+
+  try {
+    const response = await fetch(`${API_BASE}/api/verifications/${kind}`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(detail.detail || `Upload failed (${response.status})`);
+    }
+
+    const label = isLinkedin ? 'LinkedIn' : 'Trust Source';
+    setVerificationStatus(`${label} verification submitted successfully.`, 'success');
+
+    photoInput.value = '';
+    videoInput.value = '';
+    renderMediaPreview(isLinkedin ? linkedinPreview : trustPreview, photoInput, videoInput);
+
+    await fetchMe();
+  } catch (err) {
+    setVerificationStatus(err.message || 'Upload failed.', 'error');
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
+function wireVerificationPanel() {
+  btnToggleVerification?.addEventListener('click', toggleVerificationPanel);
+  tabLinkedin?.addEventListener('click', () => showVerificationTab('linkedin'));
+  tabTrust?.addEventListener('click', () => showVerificationTab('trust'));
+
+  linkedinPhoto?.addEventListener('change', () => {
+    renderMediaPreview(linkedinPreview, linkedinPhoto, linkedinVideo);
+  });
+  linkedinVideo?.addEventListener('change', () => {
+    renderMediaPreview(linkedinPreview, linkedinPhoto, linkedinVideo);
+  });
+  trustPhoto?.addEventListener('change', () => {
+    renderMediaPreview(trustPreview, trustPhoto, trustVideo);
+  });
+  trustVideo?.addEventListener('change', () => {
+    renderMediaPreview(trustPreview, trustPhoto, trustVideo);
+  });
+
+  btnSubmitLinkedin?.addEventListener('click', () => uploadVerification('linkedin'));
+  btnSubmitTrust?.addEventListener('click', () => uploadVerification('trust_source'));
+}
+
 function showError(message) {
   if (errorMessage) {
     errorMessage.textContent = message;
@@ -230,6 +413,7 @@ async function swipe(direction) {
 async function init() {
   btnLike.addEventListener('click', () => swipe('like'));
   btnPass.addEventListener('click', () => swipe('pass'));
+  wireVerificationPanel();
 
   try {
     clearError();
