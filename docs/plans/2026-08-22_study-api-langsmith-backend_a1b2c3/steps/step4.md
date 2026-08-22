@@ -25,7 +25,7 @@ Switch participant services from in-memory storage to Supabase Postgres when `ST
 - `/workspace/backend/tests/test_completion.py` (extend for postgres parametrization)
 - `/workspace/backend/tests/test_sessions.py`
 - `/workspace/backend/tests/test_concurrency.py` (new)
-- `/workspace/backend/tests/conftest.py` (parametrize `storage_mode`)
+- `/workspace/backend/tests/conftest.py` (parametrize `storage_mode`; sole `conftest.py` owner in this step)
 
 ## Files forbidden to change
 
@@ -90,9 +90,13 @@ You should see the full test suite pass.
 - Step 2 complete (participant routes and contract tests).
 - Step 3 complete (migrations and repositories).
 
+## Shared file ownership in this step
+
+This step owns `/workspace/backend/tests/conftest.py` for its turn. Do not edit `pyproject.toml` or `router.py` in this step.
+
 ## Parallelization
 
-This step runs sequentially after Steps 2 and 3. Steps 5, 6, 7, and 8 may run in parallel after Step 4 if each step stays within its closed file set.
+This step runs after Steps 2 and 3. Step 5 starts only after Step 4 is complete.
 
 ## What must pass / fail before the step is complete
 

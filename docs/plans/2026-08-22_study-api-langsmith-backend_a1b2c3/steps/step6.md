@@ -17,16 +17,16 @@ Implement server-mediated OpenAI Realtime setup. The browser posts SDP to `POST 
 - `/workspace/backend/app/api/realtime.py`
 - `/workspace/backend/app/api/internal/__init__.py`
 - `/workspace/backend/app/api/internal/realtime_items.py`
-- `/workspace/backend/app/api/router.py` (mount internal router)
+- `/workspace/backend/app/api/router.py` (mount internal router; sole `router.py` owner in this step)
 - `/workspace/backend/app/models/realtime.py` (extend if needed)
 - `/workspace/backend/app/repositories/realtime_calls.py`
 - `/workspace/supabase/migrations/20260822120000_realtime_calls.sql`
 - `/workspace/backend/workers/__init__.py`
 - `/workspace/backend/workers/realtime_control.py`
-- `/workspace/backend/pyproject.toml` (httpx if needed)
+- `/workspace/backend/pyproject.toml` (httpx if needed; sole `pyproject.toml` owner in this step)
 - `/workspace/backend/tests/test_realtime.py`
 - `/workspace/backend/tests/test_internal_realtime_items.py`
-- `/workspace/backend/tests/conftest.py` (worker auth header fixture)
+- `/workspace/backend/tests/conftest.py` (worker auth header fixture; sole `conftest.py` owner in this step)
 
 ## Files forbidden to change
 
@@ -47,7 +47,7 @@ Participant route requirements are as follows.
 
 Internal route requirements are as follows.
 
-- `POST /internal/v1/realtime/calls/{openai_call_id}/items` requires header `X-Worker-Token` matching `WORKER_SERVICE_TOKEN` env var.
+- `POST /internal/v1/realtime/calls/{openai_call_id}/items` requires header `X-Worker-Token` matching `INTERNAL_WORKER_TOKEN` env var.
 - Maps `provider_item_id` to one canonical AI turn. Duplicate provider item returns existing turn id.
 - Participant cookie on internal route must fail with 401 or 403.
 
@@ -74,7 +74,7 @@ Opening turn requirements are as follows.
 ```bash
 cd /workspace/backend
 uv sync
-WORKER_SERVICE_TOKEN=test-token OPENAI_API_KEY=mock uv run pytest tests/test_realtime.py tests/test_internal_realtime_items.py -q
+INTERNAL_WORKER_TOKEN=test-token OPENAI_API_KEY=mock uv run pytest tests/test_realtime.py tests/test_internal_realtime_items.py -q
 ```
 
 You should see all tests pass with mocked OpenAI Realtime HTTP.
@@ -97,9 +97,13 @@ You should see the full test suite pass.
 
 - Step 4 complete (durable sessions and turns).
 
+## Shared file ownership in this step
+
+This step owns `/workspace/backend/app/api/router.py`, `/workspace/backend/pyproject.toml`, and `/workspace/backend/tests/conftest.py` for its turn.
+
 ## Parallelization
 
-This step may run in parallel with Steps 5, 7, and 8 after Step 4. It does not edit generation or tracing modules.
+This step runs after Step 5. Step 7 starts only after Step 6 is complete.
 
 ## What must pass / fail before the step is complete
 

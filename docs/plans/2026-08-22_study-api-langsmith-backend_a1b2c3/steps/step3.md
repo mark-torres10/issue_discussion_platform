@@ -24,9 +24,9 @@ Add SQL migrations for Study Postgres on Supabase, database connection settings,
 - `/workspace/backend/app/repositories/turns.py`
 - `/workspace/backend/app/repositories/observations.py`
 - `/workspace/backend/app/repositories/audit.py`
-- `/workspace/backend/pyproject.toml` (add `sqlalchemy[asyncio]`, `asyncpg`, `alembic` or use raw SQL via asyncpg only)
+- `/workspace/backend/pyproject.toml` (add `sqlalchemy[asyncio]`, `asyncpg`, `alembic` or use raw SQL via asyncpg only; sole `pyproject.toml` owner in this step)
 - `/workspace/backend/tests/test_repositories.py`
-- `/workspace/backend/tests/conftest.py` (postgres test fixture using `DATABASE_URL` or skip marker)
+- `/workspace/backend/tests/conftest.py` (postgres test fixture using `DATABASE_URL` or skip marker; sole `conftest.py` owner in this step)
 
 ## Files forbidden to change
 
@@ -98,10 +98,15 @@ You should see Step 1 and Step 2 tests still pass with no regression.
 ## Dependencies
 
 - Step 1 complete (models and config).
+- Step 2 complete (domain models in `app/models/session.py`, `transcript.py`, `observations.py`, and `realtime.py` must exist before repositories map to them).
+
+## Shared file ownership in this step
+
+This step owns `/workspace/backend/pyproject.toml` and `/workspace/backend/tests/conftest.py` for its turn. Do not edit `router.py` in this step.
 
 ## Parallelization
 
-This step may run in parallel with Step 2 after Step 1. Do not modify files in the Step 2 closed set.
+This step runs after Step 2. Do not start Step 4 until Step 3 is complete.
 
 ## What must pass / fail before the step is complete
 

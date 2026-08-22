@@ -16,7 +16,7 @@ Add versioned research export types and a minimal staff-only export endpoint tha
 - `/workspace/backend/app/models/export.py`
 - `/workspace/backend/app/api/staff/__init__.py`
 - `/workspace/backend/app/api/staff/export.py`
-- `/workspace/backend/app/api/router.py` (mount `/v1/staff` group)
+- `/workspace/backend/app/api/router.py` (mount `/v1/staff` group; sole `router.py` owner in this step)
 - `/workspace/backend/app/core/staff_auth.py`
 - `/workspace/backend/app/repositories/staff_membership.py`
 - `/workspace/supabase/migrations/20260822140000_staff_membership.sql`
@@ -88,9 +88,13 @@ You should see the full test suite pass.
 
 - Step 4 complete (committed sessions and turns in Postgres).
 
+## Shared file ownership in this step
+
+This step owns `/workspace/backend/app/api/router.py` for its turn. Do not edit `pyproject.toml` or `conftest.py` in this step.
+
 ## Parallelization
 
-This step may run in parallel with Steps 5, 6, and 7 after Step 4. The closed set covers only staff and export modules.
+This step runs after Step 7. Run the integration check after Step 8 before starting Step 9.
 
 ## What must pass / fail before the step is complete
 

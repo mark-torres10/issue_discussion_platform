@@ -57,7 +57,47 @@ sequenceDiagram
 
 ## Approach
 
-Build in dependency order across shared milestones. First freeze routes and models in memory. Second move authority to Supabase Postgres. Third add voice and text integrations. Fourth attach tracing hooks with export off. Fifth add minimal research export hooks. Sixth rewire the UI to routes that use capability cookies instead of a public session id. Seventh deploy and document. Each step file is a self-contained packet for one subagent. Parallel steps never touch the same files. Prefer direct OpenAI calls with optional LangSmith wrapping. Do not add LangGraph unless a later step proves it is required.
+Build in strict dependency order across shared milestones. First freeze routes and models in memory. Second move authority to Supabase Postgres. Third add voice and text integrations. Fourth attach tracing hooks with export off. Fifth add minimal research export hooks. Sixth rewire the UI to routes that use capability cookies instead of a public session id. Seventh deploy and document. Each step file is a self-contained packet for one subagent. Steps run sequentially. Only one step may edit `pyproject.toml`, `conftest.py`, or `router.py` at a time. See the implement order below. Prefer direct OpenAI calls with optional LangSmith wrapping. Do not add LangGraph unless a later step proves it is required.
+
+## Implement order
+
+Run steps in this order only:
+
+1. Step 1: Backend foundation and shared contracts
+2. Step 2: Sample contracts with in-memory participant API
+3. Step 3: Supabase schema and repository layer
+4. Step 4: Durable record wiring and completion transaction
+5. Step 5: Server-mediated text generation
+6. Step 6: Voice control plane and internal ingest
+7. Step 7: LangSmith tracing hooks with export disabled
+8. Step 8: Research export hooks and staff JWT stub
+9. Integration check: full backend test suite, merge conflicts on shared files, and smoke of text plus voice paths
+10. Step 9: Participant UI wiring to the Study API
+11. Step 10: Deploy, environment docs, and integration smoke
+
+## Shared file ownership
+
+These files are touched in more than one step over the plan. Only the listed step may edit each file during its turn.
+
+| File | Owning step | What that step may do |
+| --- | --- | --- |
+| `/workspace/backend/pyproject.toml` | Step 1 | Initial package layout and dev dependencies |
+| `/workspace/backend/pyproject.toml` | Step 2 | Add `itsdangerous` or equivalent for CSRF |
+| `/workspace/backend/pyproject.toml` | Step 3 | Add `sqlalchemy`, `asyncpg`, and related DB deps |
+| `/workspace/backend/pyproject.toml` | Step 5 | Add `openai` |
+| `/workspace/backend/pyproject.toml` | Step 6 | Add `httpx` if needed |
+| `/workspace/backend/pyproject.toml` | Step 7 | Add `langsmith` |
+| `/workspace/backend/tests/conftest.py` | Step 1 | Baseline pytest fixtures |
+| `/workspace/backend/tests/conftest.py` | Step 2 | Participant client helpers |
+| `/workspace/backend/tests/conftest.py` | Step 3 | Postgres test fixture or skip marker |
+| `/workspace/backend/tests/conftest.py` | Step 4 | `storage_mode` parametrization |
+| `/workspace/backend/tests/conftest.py` | Step 5 | Mock OpenAI client fixture |
+| `/workspace/backend/tests/conftest.py` | Step 6 | Worker auth header fixture |
+| `/workspace/backend/tests/conftest.py` | Step 7 | Fake LangSmith client fixture |
+| `/workspace/backend/app/api/router.py` | Step 1 | Initial router mount for health |
+| `/workspace/backend/app/api/router.py` | Step 2 | Register participant routers |
+| `/workspace/backend/app/api/router.py` | Step 6 | Mount internal worker router |
+| `/workspace/backend/app/api/router.py` | Step 8 | Mount `/v1/staff` router group |
 
 ## Steps
 
@@ -92,6 +132,10 @@ You add a tracing service interface, hook calls after committed generations, UUI
 ### Step 8: Research export hooks and staff JWT stub
 
 You add versioned export manifest types, a minimal staff export route that verifies a forwarded Supabase JSON Web Token stub, and tests that exports come only from committed Postgres rows.
+
+### Integration check (after Step 8, before Step 9)
+
+Run the full backend test suite. Confirm no merge conflicts remain on `pyproject.toml`, `conftest.py`, or `router.py`. Smoke text generation and voice ingest paths end to end. Do not start UI wiring until this check passes.
 
 ### Step 9: Participant UI wiring to the Study API
 

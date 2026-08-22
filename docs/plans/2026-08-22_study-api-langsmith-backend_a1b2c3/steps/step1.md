@@ -91,9 +91,13 @@ You should see the first curl print JSON containing `"status":"ok"`. The second 
 
 None. This is the first step in the plan.
 
+## Shared file ownership in this step
+
+This step is the sole owner of the initial versions of `/workspace/backend/pyproject.toml`, `/workspace/backend/tests/conftest.py`, and `/workspace/backend/app/api/router.py`. Later steps may append to these files only in their own turn. See the shared file ownership table in `plan.md`.
+
 ## Parallelization
 
-This step runs sequentially. Step 2 and Step 3 both depend on this step. Step 2 and Step 3 may run in parallel after Step 1 completes, because their closed file sets do not overlap.
+This step runs first. Step 2 starts only after Step 1 is complete.
 
 ## What must pass / fail before the step is complete
 

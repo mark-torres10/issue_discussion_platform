@@ -19,10 +19,10 @@ Replace scripted AI replies in `POST /v1/participant-session/messages` with serv
 - `/workspace/backend/app/models/generation.py`
 - `/workspace/backend/app/api/messages.py`
 - `/workspace/backend/app/repositories/generation_operations.py` (new table via migration file `/workspace/supabase/migrations/20260822110000_generation_operations.sql` only if this step owns it. Otherwise use existing sessions DB session in same migration addendum)
-- `/workspace/backend/pyproject.toml` (add `openai` package)
+- `/workspace/backend/pyproject.toml` (add `openai` package; sole `pyproject.toml` owner in this step)
 - `/workspace/backend/tests/test_generation.py`
 - `/workspace/backend/tests/test_messages.py` (extend for live vs mock)
-- `/workspace/backend/tests/conftest.py` (mock OpenAI client fixture)
+- `/workspace/backend/tests/conftest.py` (mock OpenAI client fixture; sole `conftest.py` owner in this step)
 
 ## Files forbidden to change
 
@@ -81,9 +81,13 @@ You should see the full test suite pass. Step 6 and Step 7 tests may not exist y
 
 - Step 4 complete (durable turns and sessions).
 
+## Shared file ownership in this step
+
+This step owns `/workspace/backend/pyproject.toml` and `/workspace/backend/tests/conftest.py` for its turn. Do not edit `router.py` in this step.
+
 ## Parallelization
 
-This step may run in parallel with Steps 6, 7, and 8 after Step 4. The closed set excludes `realtime.py`, `tracing.py`, `export.py`, and `workers/`.
+This step runs after Step 4. Step 6 starts only after Step 5 is complete.
 
 ## What must pass / fail before the step is complete
 

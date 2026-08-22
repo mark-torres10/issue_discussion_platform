@@ -37,18 +37,22 @@ Environment variable names are documented below. Values are never committed.
 
 | Variable | Host | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | Railway API | Supabase Postgres connection string |
+| `DATABASE_URL` | Railway API | Study Postgres connection string |
 | `STORAGE_MODE` | Railway API | `postgres` in production |
 | `OPENAI_API_KEY` | Railway API | Text and Realtime |
-| `WORKER_SERVICE_TOKEN` | Railway API and worker | Internal ingest auth |
+| `INTERNAL_WORKER_TOKEN` | Railway API and worker | Internal ingest auth |
 | `TRACE_EXPORT_ENABLED` | Railway API | Default `false` in prod docs |
+| `LANGSMITH_TRACING` | Railway API | Default `false` in prod docs |
 | `LANGSMITH_API_KEY` | Railway API | Optional until tracing approved |
 | `LANGSMITH_PROJECT` | Railway API | Environment-specific project name |
-| `CORS_ALLOWED_ORIGINS` | Railway API | Vercel production and preview URLs |
+| `PARTICIPANT_UI_ORIGINS` | Railway API | Vercel production, preview, and localhost origins |
+| `PARTICIPANT_COOKIE_SECRET` | Railway API | Sign participant capability cookies |
 | `INVITATION_TOKEN_PEPPER` | Railway API | Hash invitations |
-| `STUDY_API_BASE_URL` | Vercel UI | Railway public URL |
+| `NEXT_PUBLIC_STUDY_API_ORIGIN` | Vercel UI | Public Study API origin the browser calls |
 | `NEXT_PUBLIC_SUPABASE_URL` | Vercel UI | Staff auth later |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Vercel UI | Staff auth later |
+
+Variable names match `strategy_planning/CREDENTIALS_AND_SETUP.md`. Do not commit secret values.
 
 Deploy checks are as follows.
 
@@ -59,6 +63,7 @@ Deploy checks are as follows.
 Production defaults documented in the runbook are as follows.
 
 - `TRACE_EXPORT_ENABLED=false`
+- `LANGSMITH_TRACING=false`
 - LangSmith tracing off until written retention policy attached
 - No LangGraph services
 
@@ -117,11 +122,11 @@ You should see JSON with `"status":"ok"`.
 ## Dependencies
 
 - Steps 1 through 9 complete or explicitly waived with human approval.
-- Integration check after parallel Steps 5 to 8 before this step starts.
+- Integration check after Step 8 must be complete before Step 9 started.
 
 ## Parallelization
 
-This step runs last. No parallel work after this step for the same release.
+This step runs last after Step 9. No parallel work after this step for the same release.
 
 ## What must pass / fail before the step is complete
 

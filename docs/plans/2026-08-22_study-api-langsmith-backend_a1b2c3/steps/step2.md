@@ -19,7 +19,7 @@ Implement the full participant route table from the backend proposal against an 
 - `/workspace/backend/app/api/messages.py`
 - `/workspace/backend/app/api/observations.py`
 - `/workspace/backend/app/api/realtime.py`
-- `/workspace/backend/app/api/router.py` (register new routers only)
+- `/workspace/backend/app/api/router.py` (register participant routers only; sole router owner in this step)
 - `/workspace/backend/app/models/session.py`
 - `/workspace/backend/app/models/transcript.py`
 - `/workspace/backend/app/models/observations.py`
@@ -34,14 +34,14 @@ Implement the full participant route table from the backend proposal against an 
 - `/workspace/backend/app/sample_data/__init__.py`
 - `/workspace/backend/app/sample_data/sessions.py`
 - `/workspace/backend/app/sample_data/invitations.py`
-- `/workspace/backend/pyproject.toml` (add `itsdangerous` or equivalent for CSRF if needed)
+- `/workspace/backend/pyproject.toml` (add `itsdangerous` or equivalent for CSRF if needed; sole `pyproject.toml` owner in this step)
 - `/workspace/backend/tests/test_access.py`
 - `/workspace/backend/tests/test_sessions.py`
 - `/workspace/backend/tests/test_messages.py`
 - `/workspace/backend/tests/test_observations.py`
 - `/workspace/backend/tests/test_completion.py`
 - `/workspace/backend/tests/test_realtime_sample.py`
-- `/workspace/backend/tests/conftest.py` (participant client helpers only)
+- `/workspace/backend/tests/conftest.py` (participant client helpers only; sole `conftest.py` owner in this step)
 
 ## Files forbidden to change
 
@@ -120,9 +120,13 @@ You should see the full backend test suite pass, including Step 1 tests.
 
 - Step 1 must be complete (shared models, errors, health, config).
 
+## Shared file ownership in this step
+
+This step owns `/workspace/backend/app/api/router.py`, `/workspace/backend/pyproject.toml`, and `/workspace/backend/tests/conftest.py` for its turn. Do not edit these files in Step 3 until Step 2 is complete.
+
 ## Parallelization
 
-This step may run in parallel with Step 3 after Step 1. Step 2 touches `backend/app/api/*` and in-memory services. Step 3 touches `supabase/migrations` and `backend/app/db/*` only. Do not start Step 4 until both Step 2 and Step 3 are merged or integrated.
+This step runs after Step 1 and before Step 3. Do not start Step 3 until Step 2 is complete.
 
 ## What must pass / fail before the step is complete
 

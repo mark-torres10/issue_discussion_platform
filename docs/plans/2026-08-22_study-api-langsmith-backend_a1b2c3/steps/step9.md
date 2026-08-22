@@ -34,7 +34,7 @@ Replace YAML-only session loading with real Study API calls. Add `/invite/[token
 - `/workspace/ui/src/components/session/participant-introduction.tsx` (wire props only)
 - `/workspace/ui/src/components/conversation/conversation-shell.tsx` (wire API calls only)
 - `/workspace/ui/src/lib/api/study-backend.test.ts`
-- `/workspace/ui/.env.example` (add `STUDY_API_BASE_URL` name only)
+- `/workspace/ui/.env.example` (add `NEXT_PUBLIC_STUDY_API_ORIGIN` name only)
 - `/workspace/docs/plans/2026-08-22_study-api-langsmith-backend_a1b2c3/images/before/` (screenshots before wiring)
 - `/workspace/docs/plans/2026-08-22_study-api-langsmith-backend_a1b2c3/images/after/` (screenshots after wiring)
 
@@ -62,7 +62,7 @@ API client rules are as follows.
 
 - All participant fetches use `credentials: 'include'`.
 - State-changing requests send `X-CSRF-Token` header from exchange response.
-- `STUDY_API_BASE_URL` points to Railway API in production and localhost in dev.
+- `NEXT_PUBLIC_STUDY_API_ORIGIN` points to the Railway Study API public origin in production and `http://127.0.0.1:8000` in local dev. This name matches `strategy_planning/CREDENTIALS_AND_SETUP.md`.
 - UI does not call `POST /turns` or send AI/system speaker turns.
 - Opening message rendered only from start response when `ai_speaks_first` true.
 - For local development, document the `demo-campus-speech-001` invitation token in `.env.example` as the known sample token that matches backend sample data.
@@ -111,7 +111,7 @@ Manual smoke with the backend running uses two terminals.
 cd /workspace/backend && STORAGE_MODE=memory uv run fastapi dev app/main.py --port 8000
 
 # Terminal 2
-cd /workspace/ui && STUDY_API_BASE_URL=http://127.0.0.1:8000 npm run dev
+cd /workspace/ui && NEXT_PUBLIC_STUDY_API_ORIGIN=http://127.0.0.1:8000 npm run dev
 ```
 
 Open `/invite/<sample-token>` in the browser. You should see a redirect to `/session`, and the introduction should load from the API.
@@ -125,13 +125,14 @@ Open `/invite/<sample-token>` in the browser. You should see a redirect to `/ses
 
 ## Dependencies
 
+- Integration check complete after Step 8 (full backend test suite passes, shared files merged, text and voice smoke paths verified).
 - Step 2 minimum for local end-to-end (in-memory API).
 - Step 5 for real text replies in integrated demo.
 - Step 6 for live voice SDP (UI may ship text-first with voice gated behind env flag).
 
 ## Parallelization
 
-This step runs sequentially after backend participant routes exist (Step 2 for mock, ideally Step 4 or later for staging). Do not run it in parallel with any backend step that edits the same API contracts without an integration check.
+This step runs after the integration check. Do not start Step 9 until Steps 1 through 8 and the integration check are complete.
 
 ## What must pass / fail before the step is complete
 
