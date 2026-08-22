@@ -8,6 +8,10 @@ class Settings:
         return os.environ.get("STORAGE_MODE", "memory")
 
     @property
+    def use_postgres(self) -> bool:
+        return self.storage_mode == "postgres"
+
+    @property
     def database_url(self) -> str | None:
         return os.environ.get("DATABASE_URL")
 

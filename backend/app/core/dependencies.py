@@ -14,7 +14,17 @@ from app.services.capability import (
     IDEMPOTENCY_HEADER_NAME,
     load_capability_payload,
 )
+from app.core.config import get_settings
 from app.services.sessions import CapabilityContext, StudyApiError
+
+
+def require_postgres_database_url() -> str:
+    settings = get_settings()
+    if not settings.use_postgres:
+        raise RuntimeError("Postgres storage is not enabled")
+    if not settings.database_url:
+        raise RuntimeError("DATABASE_URL is required when STORAGE_MODE=postgres")
+    return settings.database_url
 
 
 class StudyApiErrorMiddleware(BaseHTTPMiddleware):

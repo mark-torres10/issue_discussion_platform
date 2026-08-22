@@ -20,7 +20,7 @@ from app.sample_data.invitations import (
     UNKNOWN_INVITATION_TOKEN,
 )
 from app.services.capability import CSRF_HEADER_NAME, IDEMPOTENCY_HEADER_NAME
-from app.services.sessions import reset_store
+from app.services.sessions import reset_postgres_ephemeral_state, reset_store, seed_postgres_invitation
 
 EXCHANGE_PATH = "/v1/participant-access/exchange"
 SESSION_PATH = "/v1/participant-session"
@@ -145,26 +145,67 @@ def app() -> FastAPI:
 
 
 @pytest.fixture
-def client(app: FastAPI) -> Generator[TestClient, None, None]:
+def client(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
+    monkeypatch.setenv("STORAGE_MODE", "memory")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    reset_store()
     with TestClient(app) as test_client:
         yield test_client
 
 
+@pytest.fixture(params=["memory", "postgres"])
+def storage_mode(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> str:
+    mode = request.param
+    if mode == "postgres" and not os.environ.get("DATABASE_URL"):
+        pytest.skip("DATABASE_URL is not set; skipping postgres contract tests")
+    monkeypatch.setenv("STORAGE_MODE", mode)
+    reset_engine()
+    reset_postgres_ephemeral_state()
+    if mode == "postgres":
+        monkeypatch.setenv("DATABASE_URL", os.environ["DATABASE_URL"])
+    else:
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+        reset_store()
+    return mode
+
+
 @pytest.fixture
-def postgres_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("STORAGE_MODE", "postgres")
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+def invitation_token(storage_mode: str) -> str:
+    if storage_mode == "postgres":
+        return f"postgres-contract-invitation-{uuid4()}-minimum-length"
+    return SAMPLE_WRITER_INVITATION_TOKEN
+
+
+@pytest.fixture
+def storage_client(
+    app: FastAPI,
+    storage_mode: str,
+    invitation_token: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[TestClient, None, None]:
+    if storage_mode == "postgres":
+        import asyncio
+
+        asyncio.run(seed_postgres_invitation(invitation_token))
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 @pytest.fixture
 def memory_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("STORAGE_MODE", "memory")
     monkeypatch.delenv("DATABASE_URL", raising=False)
-
-
-@pytest.fixture(autouse=True)
-def reset_memory_store(memory_mode: None) -> None:
     reset_store()
+
+
+@pytest.fixture
+def postgres_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STORAGE_MODE", "postgres")
+    if os.environ.get("DATABASE_URL"):
+        monkeypatch.setenv("DATABASE_URL", os.environ["DATABASE_URL"])
 
 
 @pytest.fixture
@@ -176,9 +217,10 @@ def commit_sha(monkeypatch: pytest.MonkeyPatch) -> str:
 
 def exchange_invitation(
     client: TestClient,
-    token: str = SAMPLE_WRITER_INVITATION_TOKEN,
+    token: str | None = None,
 ) -> ExchangeResult:
-    response = client.post(EXCHANGE_PATH, json={"invitation_token": token})
+    invitation_token = token or SAMPLE_WRITER_INVITATION_TOKEN
+    response = client.post(EXCHANGE_PATH, json={"invitation_token": invitation_token})
     csrf_token = response.headers.get(CSRF_HEADER_NAME, "")
     body = response.json()
     writer_role = body.get("writer_role", "")
