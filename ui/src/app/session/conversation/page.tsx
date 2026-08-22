@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { AppFrame } from "@/components/session/app-frame";
-import { ConversationShell } from "@/components/conversation/conversation-shell";
 import {
   isSessionAvailable,
   PARTICIPANT_ROUTES,
 } from "@/lib/api/study-backend";
 import { fetchParticipantSession } from "@/lib/api/study-backend-client";
+import { ConversationEntry } from "./conversation-entry";
 
 export default async function ConversationPage() {
   const session = await fetchParticipantSession();
@@ -20,7 +20,7 @@ export default async function ConversationPage() {
 
   return (
     <AppFrame className="overflow-hidden">
-      <ConversationShell session={session} />
+      <ConversationEntry session={session} />
     </AppFrame>
   );
 }

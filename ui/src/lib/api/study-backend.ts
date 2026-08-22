@@ -1,4 +1,8 @@
-import { CSRF_HEADER_NAME, withCsrfHeaders } from "@/lib/api/csrf";
+import {
+  CAPABILITY_COOKIE_NAME,
+  CSRF_HEADER_NAME,
+  withCsrfHeaders,
+} from "@/lib/api/csrf";
 import type { StudySession, SessionStatus } from "@/lib/types/session";
 
 export const SAMPLE_SESSION_ID = "demo-campus-speech-001";
@@ -188,6 +192,73 @@ export function mapParticipantSessionView(
  */
 export function isSessionAvailable(session: StudySession): boolean {
   return session.status === "active";
+}
+
+export interface ExchangeCookieValues {
+  capabilityValue?: string;
+  csrfToken: string | null;
+}
+
+export interface ParticipantCookieOptions {
+  httpOnly: boolean;
+  sameSite: "lax";
+  path: "/";
+  secure: boolean;
+}
+
+/**
+ * Parse the capability token from Set-Cookie response headers.
+ */
+export function parseCapabilityFromSetCookie(
+  setCookieHeaders: string[],
+  rawSetCookie?: string | null,
+): string | undefined {
+  const capabilityCookie =
+    setCookieHeaders.find((entry) =>
+      entry.startsWith(`${CAPABILITY_COOKIE_NAME}=`),
+    ) ??
+    (rawSetCookie?.startsWith(`${CAPABILITY_COOKIE_NAME}=`)
+      ? rawSetCookie
+      : undefined);
+
+  return capabilityCookie
+    ?.split(";")[0]
+    ?.slice(`${CAPABILITY_COOKIE_NAME}=`.length);
+}
+
+/**
+ * Extract participant cookie values from an exchange response.
+ */
+export function parseExchangeCookieValues(
+  response: Pick<Response, "headers">,
+): ExchangeCookieValues {
+  const setCookieHeaders =
+    typeof response.headers.getSetCookie === "function"
+      ? response.headers.getSetCookie()
+      : [];
+  const rawSetCookie = response.headers.get("set-cookie");
+
+  return {
+    capabilityValue: parseCapabilityFromSetCookie(
+      setCookieHeaders,
+      rawSetCookie,
+    ),
+    csrfToken: response.headers.get(CSRF_HEADER_NAME),
+  };
+}
+
+/**
+ * Cookie attributes for participant capability and CSRF cookies.
+ */
+export function getParticipantCookieOptions(
+  httpOnly: boolean,
+): ParticipantCookieOptions {
+  return {
+    httpOnly,
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+  };
 }
 
 export { CSRF_HEADER_NAME };

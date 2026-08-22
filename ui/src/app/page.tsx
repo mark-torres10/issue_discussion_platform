@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AppFrame } from "@/components/session/app-frame";
 import { buttonVariants } from "@/components/ui/button";
-import { SAMPLE_SESSION_ID } from "@/lib/api/study-backend";
+import { SAMPLE_INVITATION_TOKEN } from "@/lib/api/study-backend";
 import { loadUiCopy } from "@/lib/content/loader";
 
 export default function HomePage() {
@@ -28,8 +28,8 @@ export default function HomePage() {
           <li>{copy.home.step4}</li>
         </ol>
         <Link
-          href={`/session/${SAMPLE_SESSION_ID}`}
-          data-testid="open-sample-session"
+          href={`/invite/${SAMPLE_INVITATION_TOKEN}`}
+          data-testid="open-sample-invite"
           className={buttonVariants({
             size: "lg",
             className: "inline-flex w-full",

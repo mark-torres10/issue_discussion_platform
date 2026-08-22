@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { CSRF_HEADER_NAME, withCsrfHeaders } from "@/lib/api/csrf";
+import { CAPABILITY_COOKIE_NAME, CSRF_HEADER_NAME, withCsrfHeaders } from "@/lib/api/csrf";
 import {
   buildParticipantFetchInit,
+  getParticipantCookieOptions,
   mapParticipantSessionView,
+  parseCapabilityFromSetCookie,
+  parseExchangeCookieValues,
   PARTICIPANT_ROUTES,
   SAMPLE_INVITATION_TOKEN,
   type ParticipantSessionView,
@@ -80,5 +83,42 @@ describe("TestNoSessionIdInPath", () => {
     }
     expect(PARTICIPANT_ROUTES.conversation).toBe("/session/conversation");
     expect(PARTICIPANT_ROUTES.session).toBe("/session");
+  });
+});
+
+describe("TestExchangeCookies", () => {
+  it("test_parses_capability_from_set_cookie_headers", () => {
+    const headers = [
+      `${CAPABILITY_COOKIE_NAME}=cap-token-123; Path=/; HttpOnly`,
+      "other=value; Path=/",
+    ];
+    expect(parseCapabilityFromSetCookie(headers)).toBe("cap-token-123");
+  });
+
+  it("test_parses_capability_from_raw_set_cookie", () => {
+    const raw = `${CAPABILITY_COOKIE_NAME}=raw-token; Path=/; HttpOnly`;
+    expect(parseCapabilityFromSetCookie([], raw)).toBe("raw-token");
+  });
+
+  it("test_parses_exchange_cookie_values", () => {
+    const response = new Response(null, {
+      headers: {
+        [CSRF_HEADER_NAME]: "csrf-from-header",
+        "set-cookie": `${CAPABILITY_COOKIE_NAME}=cap-from-response; Path=/`,
+      },
+    });
+
+    expect(parseExchangeCookieValues(response)).toEqual({
+      capabilityValue: "cap-from-response",
+      csrfToken: "csrf-from-header",
+    });
+  });
+
+  it("test_participant_cookie_options_secure_in_production", () => {
+    const capability = getParticipantCookieOptions(true);
+    expect(capability.httpOnly).toBe(true);
+    expect(capability.sameSite).toBe("lax");
+    expect(capability.path).toBe("/");
+    expect(capability.secure).toBe(process.env.NODE_ENV === "production");
   });
 });

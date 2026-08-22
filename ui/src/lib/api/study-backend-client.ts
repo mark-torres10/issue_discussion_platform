@@ -7,10 +7,13 @@ import {
   CSRF_HEADER_NAME,
 } from "@/lib/api/csrf";
 import {
+  getParticipantCookieOptions,
   getStudyApiOrigin,
   IDEMPOTENCY_HEADER_NAME,
   mapParticipantSessionView,
+  parseExchangeCookieValues,
   StudyApiError,
+  type ExchangeCookieValues,
   type ParticipantSessionView,
   type SessionCompleteResponse,
   type SessionStartResponse,
@@ -85,9 +88,12 @@ async function participantApiFetch<T>(
   return (await response.json()) as T;
 }
 
-export async function exchangeInvitation(
+export async function exchangeInvitationToken(
   invitationToken: string,
-): Promise<ParticipantSessionView> {
+): Promise<{
+  view: ParticipantSessionView;
+  cookies: ExchangeCookieValues;
+}> {
   const response = await fetch(
     `${getStudyApiOrigin()}/v1/participant-access/exchange`,
     {
@@ -107,42 +113,41 @@ export async function exchangeInvitation(
   }
 
   const view = (await response.json()) as ParticipantSessionView;
-  const csrfToken = response.headers.get(CSRF_HEADER_NAME);
-  const setCookieHeaders =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [];
-  const rawSetCookie = response.headers.get("set-cookie");
-  const capabilityCookie =
-    setCookieHeaders.find((entry) =>
-      entry.startsWith(`${CAPABILITY_COOKIE_NAME}=`),
-    ) ?? (rawSetCookie?.startsWith(`${CAPABILITY_COOKIE_NAME}=`)
-      ? rawSetCookie
-      : undefined);
-  const capabilityValue = capabilityCookie
-    ?.split(";")[0]
-    ?.slice(`${CAPABILITY_COOKIE_NAME}=`.length);
+  return {
+    view,
+    cookies: parseExchangeCookieValues(response),
+  };
+}
 
+/**
+ * Exchange an invitation and persist cookies (Server Action / Route Handler only).
+ */
+export async function exchangeInvitation(
+  invitationToken: string,
+): Promise<ParticipantSessionView> {
+  const { view, cookies: exchangeCookies } =
+    await exchangeInvitationToken(invitationToken);
   const cookieStore = await cookies();
-  if (capabilityValue) {
-    cookieStore.set(CAPABILITY_COOKIE_NAME, capabilityValue, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      secure: process.env.NODE_ENV === "production",
-    });
+
+  if (exchangeCookies.capabilityValue) {
+    cookieStore.set(
+      CAPABILITY_COOKIE_NAME,
+      exchangeCookies.capabilityValue,
+      getParticipantCookieOptions(true),
+    );
   }
-  if (csrfToken) {
-    cookieStore.set(CSRF_COOKIE_NAME, csrfToken, {
-      httpOnly: false,
-      sameSite: "lax",
-      path: "/",
-      secure: process.env.NODE_ENV === "production",
-    });
+  if (exchangeCookies.csrfToken) {
+    cookieStore.set(
+      CSRF_COOKIE_NAME,
+      exchangeCookies.csrfToken,
+      getParticipantCookieOptions(false),
+    );
   }
 
   return view;
 }
+
+const MISSING_SESSION_STATUS_CODES = new Set([401, 404, 410, 500]);
 
 export async function fetchParticipantSession(): Promise<StudySession | null> {
   try {
@@ -151,10 +156,13 @@ export async function fetchParticipantSession(): Promise<StudySession | null> {
     );
     return mapParticipantSessionView(view);
   } catch (error) {
-    if (error instanceof StudyApiError && [401, 404, 410].includes(error.statusCode)) {
+    if (
+      error instanceof StudyApiError &&
+      MISSING_SESSION_STATUS_CODES.has(error.statusCode)
+    ) {
       return null;
     }
-    throw error;
+    return null;
   }
 }
 
