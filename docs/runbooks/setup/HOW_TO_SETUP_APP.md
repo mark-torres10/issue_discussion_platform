@@ -168,6 +168,41 @@ supabase start
 supabase status
 ```
 
+## Environment variable names
+
+Store values in Railway, Vercel, or a local gitignored `.env` file. Never commit secret values to git. Full tables and smoke steps: [Study API environment](../deploy/STUDY_API_ENV.md).
+
+### Railway Study API (`api`)
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Supabase Postgres connection string |
+| `STORAGE_MODE` | `postgres` in production |
+| `OPENAI_API_KEY` | Text and Realtime (server only) |
+| `INTERNAL_WORKER_TOKEN` | Internal worker ingest auth |
+| `PARTICIPANT_UI_ORIGINS` | Vercel production, preview, and localhost origins |
+| `PARTICIPANT_COOKIE_SECRET` | Sign participant capability cookies |
+| `INVITATION_TOKEN_PEPPER` | Hash invitations |
+| `SUPABASE_URL` | Staff auth (Supabase project URL) |
+| `SUPABASE_JWT_SECRET` | Verify staff JWTs |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase admin key |
+| `STUDY_API_ROLE` | `api` for Postgres readiness on `/ready` |
+| `TRACE_EXPORT_ENABLED` | Default **`false`** in production |
+| `LANGSMITH_TRACING` | Default **`false`** in production |
+| `LANGSMITH_API_KEY` | Optional until tracing approved |
+| `LANGSMITH_PROJECT` | Environment-specific project name |
+| `LANGSMITH_WORKSPACE_ID` | Optional; only if LangSmith requires it |
+
+Postgres is the **hosted Supabase** project in this section, not a separate Railway Postgres service.
+
+### Vercel UI (`ui/`)
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_STUDY_API_ORIGIN` | Public Study API origin the browser calls |
+| `NEXT_PUBLIC_SUPABASE_URL` | Staff auth (Supabase project URL) |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key |
+
 ## After setup
 
 Start the app with [How to run the app](../HOW_TO_RUN_APP.md).

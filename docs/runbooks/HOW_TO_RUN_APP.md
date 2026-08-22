@@ -6,6 +6,27 @@ The runnable app is the Next.js participant prototype in `ui/`. Next.js is the w
 
 A browser with microphone permission is useful if you want to try voice mode.
 
+## Start the Study API (optional)
+
+For local participant routes against the real API instead of mocks, run the FastAPI service in `backend/` and point the UI at it.
+
+```bash
+cd backend
+uv sync
+uv run fastapi dev app/main.py --port 8000
+```
+
+Copy `ui/.env.example` to `ui/.env.local` and set `NEXT_PUBLIC_STUDY_API_ORIGIN=http://127.0.0.1:8000`. In-memory sample mode works without `DATABASE_URL`. For Supabase Postgres locally, set `STORAGE_MODE=postgres` and `DATABASE_URL` in a gitignored `backend/.env` (see [Study API environment](deploy/STUDY_API_ENV.md)).
+
+Smoke the API:
+
+```bash
+curl -s http://127.0.0.1:8000/health
+bash /workspace/scripts/smoke_study_api.sh   # uses SMOKE_BASE_URL default if unset
+```
+
+With only the default in-memory token, expect `OK health` and `OK exchange` / `OK session read`. Deployed postgres APIs need `SMOKE_INVITATION_TOKEN` (documented in [Study API environment](deploy/STUDY_API_ENV.md)).
+
 ## Start the participant UI
 
 From `ui/`, run `npm run dev` to start the Next.js development server.
