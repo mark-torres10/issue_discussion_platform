@@ -48,13 +48,11 @@ from app.models.transcript import (
 )
 from app.sample_data.invitations import hash_invitation_token
 from app.sample_data.sessions import (
-    DEMO_AI_PERSONA,
     DEMO_COMPLETION_NEXT_STEP,
     DEMO_ISSUE,
     DEMO_OPENING_MESSAGE,
     DEMO_PROMPT_VERSION,
     DEMO_RULES,
-    DEMO_SCRIPTED_AI_REPLIES,
     DEMO_STUDY_WAVE,
     ConfigurationSnapshot,
     INVITATION_TOKEN_HASHES,
