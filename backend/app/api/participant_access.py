@@ -1,3 +1,9 @@
+"""Participant access exchange routes.
+
+Exchanges invitation tokens for a participant session view and issues the signed
+capability cookie used by subsequent Study API routes.
+"""
+
 from typing import Annotated
 
 from fastapi import APIRouter, Request, Response
@@ -22,6 +28,27 @@ def participant_access_exchange(
     response: Response,
     body: AccessExchangeRequest,
 ) -> ParticipantSessionView | JSONResponse:
+    """Exchange an invitation token for a participant session.
+
+  No prior authentication is required. On success, sets the signed
+  ``participant_capability`` cookie and returns the CSRF token in the
+  ``X-CSRF-Token`` response header for use on mutating participant routes.
+
+  Parameters
+  ----------
+  request : Request
+      Incoming HTTP request (used for structured error responses).
+  response : Response
+      Outgoing HTTP response; receives the capability cookie.
+  body : AccessExchangeRequest
+      Invitation token and client metadata for the exchange.
+
+  Returns
+  -------
+  ParticipantSessionView or JSONResponse
+      Session view on success, or a JSON error body with an appropriate
+      HTTP status when the invitation is invalid or the exchange fails.
+  """
     try:
         view, capability, cross_site = exchange_access(body)
     except StudyApiError as exc:

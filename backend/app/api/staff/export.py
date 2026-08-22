@@ -1,3 +1,9 @@
+"""Staff session export routes.
+
+Staff-authenticated endpoints for exporting durable session data for analysis
+or archival.
+"""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Request
@@ -21,6 +27,28 @@ async def get_session_export(
     session_id: UUID,
     staff: StaffIdentityDep,
 ) -> SessionExportManifest | JSONResponse:
+    """Export a session manifest for staff review.
+
+  Requires a Supabase JWT in the ``Authorization: Bearer`` header. Requests
+  that include a ``participant_capability`` cookie are rejected. The staff
+  identity must have export permission for the requested session.
+
+  Parameters
+  ----------
+  request : Request
+      Incoming HTTP request; ``request.state.request_id`` is forwarded to the
+      export audit trail when present.
+  session_id : UUID
+      Session to export.
+  staff : StaffIdentity
+      Authenticated staff user resolved from the bearer token.
+
+  Returns
+  -------
+  SessionExportManifest or JSONResponse
+      Export manifest with artifact references on success, or a JSON error
+      body when authentication, authorization, or export assembly fails.
+  """
     try:
         request_id = getattr(request.state, "request_id", None)
         return await export_session(

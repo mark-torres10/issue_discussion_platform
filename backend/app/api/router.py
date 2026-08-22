@@ -1,3 +1,9 @@
+"""Study API router aggregation.
+
+Mounts participant, staff, internal worker, and health route modules onto a
+single ``api_router`` for inclusion in the FastAPI application.
+"""
+
 from fastapi import APIRouter
 
 from app.api.health import router as health_router

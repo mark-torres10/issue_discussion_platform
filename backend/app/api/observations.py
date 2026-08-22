@@ -1,3 +1,9 @@
+"""Participant observation ingestion routes.
+
+Records batched client observations (telemetry or study events) for an
+authenticated participant session.
+"""
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
@@ -20,6 +26,30 @@ def post_observations(
     body: ObservationBatchCreate,
     idempotency_key: IdempotencyKeyDep,
 ) -> ObservationBatchResponse | JSONResponse:
+    """Ingest a batch of participant observations.
+
+  Requires a valid ``participant_capability`` cookie, a matching
+  ``X-CSRF-Token`` header, and an ``Idempotency-Key`` header. Replays with
+  the same idempotency key return the original batch result without
+  duplicating stored observations.
+
+  Parameters
+  ----------
+  request : Request
+      Incoming HTTP request (used for structured error responses).
+  capability : CapabilityContext
+      Authenticated participant capability with CSRF validation applied.
+  body : ObservationBatchCreate
+      Batch of observation events to persist.
+  idempotency_key : str
+      Client-supplied idempotency key from the ``Idempotency-Key`` header.
+
+  Returns
+  -------
+  ObservationBatchResponse or JSONResponse
+      Ingestion summary on success, or a JSON error body when validation or
+      persistence fails.
+  """
     try:
         return record_observations(
             capability,

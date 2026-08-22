@@ -1,3 +1,8 @@
+"""Participant realtime call routes.
+
+Creates realtime voice calls for an authenticated participant session.
+"""
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
@@ -21,6 +26,29 @@ def post_realtime_call(
     body: RealtimeCallCreateRequest,
     idempotency_key: IdempotencyKeyDep,
 ) -> RealtimeCallCreateResponse | JSONResponse:
+    """Create a realtime provider call for the session.
+
+  Requires a valid ``participant_capability`` cookie, a matching
+  ``X-CSRF-Token`` header, and an ``Idempotency-Key`` header. Returns
+  provider connection details the client uses to join the call.
+
+  Parameters
+  ----------
+  request : Request
+      Incoming HTTP request (used for structured error responses).
+  capability : CapabilityContext
+      Authenticated participant capability with CSRF validation applied.
+  body : RealtimeCallCreateRequest
+      Realtime call parameters and client metadata.
+  idempotency_key : str
+      Client-supplied idempotency key from the ``Idempotency-Key`` header.
+
+  Returns
+  -------
+  RealtimeCallCreateResponse or JSONResponse
+      Call identifiers and connection details on success, or a JSON error
+      body when validation, authorization, or provider setup fails.
+  """
     try:
         return create_realtime_call(
             capability,
