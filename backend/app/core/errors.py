@@ -1,3 +1,10 @@
+"""Request correlation and centralized API error responses.
+
+Assigns a per-request ID for tracing and registers exception handlers that map
+validation failures, domain errors, and unexpected exceptions to structured
+:class:`~app.models.errors.ApiError` JSON payloads.
+"""
+
 import uuid
 from collections.abc import Awaitable, Callable
 
@@ -12,6 +19,12 @@ from app.services.sessions import StudyApiError
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Assign a unique request ID before downstream handlers run.
+
+    Stores the ID on ``request.state.request_id`` so error responses and logs
+    can correlate a single client request.
+    """
+
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
@@ -20,6 +33,13 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 
 
 def register_middleware(app: FastAPI) -> None:
+    """Attach request correlation middleware to a FastAPI application.
+
+    Parameters
+    ----------
+    app : fastapi.FastAPI
+        Application that should receive a ``request_id`` on every request.
+    """
     app.add_middleware(RequestIdMiddleware)
 
 
@@ -28,6 +48,17 @@ def _request_id(request: Request) -> str:
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    """Register JSON exception handlers for API errors.
+
+    Maps request validation failures, :class:`~app.services.sessions.StudyApiError`,
+    and uncaught exceptions to :class:`~app.models.errors.ApiError` responses
+    that include the request correlation ID.
+
+    Parameters
+    ----------
+    app : fastapi.FastAPI
+        Application whose errors should be returned in the Study API envelope.
+    """
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
         request: Request, exc: RequestValidationError

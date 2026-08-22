@@ -1,3 +1,10 @@
+"""FastAPI dependencies for participant capability auth, CSRF, and idempotency.
+
+Provides dependency callables and type aliases used by participant-facing routes
+to load signed capability cookies, enforce CSRF on mutating requests, and
+require idempotency keys.
+"""
+
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 from uuid import UUID
@@ -19,6 +26,18 @@ from app.services.sessions import CapabilityContext, StudyApiError
 
 
 def require_postgres_database_url() -> str:
+    """Return the configured Postgres URL when durable storage is enabled.
+
+    Returns
+    -------
+    str
+        Value of ``DATABASE_URL``.
+
+    Raises
+    ------
+    RuntimeError
+        If ``STORAGE_MODE`` is not ``postgres`` or ``DATABASE_URL`` is unset.
+    """
     settings = get_settings()
     if not settings.use_postgres:
         raise RuntimeError("Postgres storage is not enabled")
@@ -28,6 +47,12 @@ def require_postgres_database_url() -> str:
 
 
 class StudyApiErrorMiddleware(BaseHTTPMiddleware):
+    """Convert uncaught :class:`~app.services.sessions.StudyApiError` into JSON responses.
+
+    Catches domain errors raised during request handling and serializes them as
+    :class:`~app.models.errors.ApiError` payloads with the request correlation ID.
+    """
+
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
@@ -49,10 +74,32 @@ class StudyApiErrorMiddleware(BaseHTTPMiddleware):
 
 
 def register_study_api_error_handler(app: FastAPI) -> None:
+    """Attach :class:`StudyApiErrorMiddleware` to a FastAPI application.
+
+    Parameters
+    ----------
+    app : fastapi.FastAPI
+        Application that should return structured errors for
+        :class:`~app.services.sessions.StudyApiError`.
+    """
     app.add_middleware(StudyApiErrorMiddleware)
 
 
 def study_error_response(request: Request, exc: StudyApiError) -> ApiError:
+    """Build an :class:`~app.models.errors.ApiError` from a domain exception.
+
+    Parameters
+    ----------
+    request : fastapi.Request
+        Current request, used to read the correlation ID from ``request.state``.
+    exc : StudyApiError
+        Domain error to serialize.
+
+    Returns
+    -------
+    ApiError
+        Structured error payload for the client.
+    """
     request_id = getattr(request.state, "request_id", "")
     return ApiError(
         request_id=request_id,
@@ -65,6 +112,26 @@ def study_error_response(request: Request, exc: StudyApiError) -> ApiError:
 
 
 def get_capability(request: Request) -> CapabilityContext:
+    """Load and validate the signed participant capability cookie.
+
+    Parameters
+    ----------
+    request : fastapi.Request
+        Incoming request whose cookies are inspected.
+
+    Returns
+    -------
+    CapabilityContext
+        Session identity, capability ID, writer role, and CSRF token for the
+        participant.
+
+    Raises
+    ------
+    StudyApiError
+        With ``capability_missing`` when the cookie is absent, or
+        ``capability_invalid`` when the signature, payload, or writer role is
+        invalid.
+    """
     signed = request.cookies.get(CAPABILITY_COOKIE_NAME)
     if not signed:
         raise StudyApiError(
@@ -101,6 +168,26 @@ def require_csrf(
     request: Request,
     capability: Annotated[CapabilityContext, Depends(get_capability)],
 ) -> CapabilityContext:
+    """Require a valid CSRF token on mutating participant requests.
+
+    Parameters
+    ----------
+    request : fastapi.Request
+        Incoming request whose CSRF header is validated.
+    capability : CapabilityContext
+        Participant capability loaded by :func:`get_capability`.
+
+    Returns
+    -------
+    CapabilityContext
+        The same ``capability`` when validation succeeds or the method is safe.
+
+    Raises
+    ------
+    StudyApiError
+        With ``csrf_rejected`` when a ``POST``, ``PUT``, ``PATCH``, or
+        ``DELETE`` request lacks a matching CSRF header.
+    """
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         if not validate_csrf_token(request, capability.csrf_token):
             raise StudyApiError(
@@ -112,6 +199,23 @@ def require_csrf(
 
 
 def require_idempotency_key(request: Request) -> str:
+    """Require the ``Idempotency-Key`` header on a request.
+
+    Parameters
+    ----------
+    request : fastapi.Request
+        Incoming request whose headers are inspected.
+
+    Returns
+    -------
+    str
+        The idempotency key supplied by the client.
+
+    Raises
+    ------
+    StudyApiError
+        With ``validation_error`` when the header is missing.
+    """
     key = request.headers.get(IDEMPOTENCY_HEADER_NAME)
     if not key:
         raise StudyApiError(

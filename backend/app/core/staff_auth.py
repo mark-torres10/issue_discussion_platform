@@ -1,3 +1,9 @@
+"""Staff authentication via Supabase JWT bearer tokens.
+
+Verifies HS256-signed JWTs for staff-only routes and rejects requests that
+present a participant capability cookie instead of staff credentials.
+"""
+
 import base64
 import hashlib
 import hmac
@@ -16,6 +22,14 @@ EXPORT_ALLOWED_ROLES = frozenset({"researcher", "study_admin"})
 
 
 class StaffIdentity(FrozenModel):
+    """Authenticated staff user resolved from a Supabase JWT.
+
+    Attributes
+    ----------
+    user_id : str
+        Supabase subject (``sub``) claim for the staff member.
+    """
+
     user_id: str
 
 
@@ -86,6 +100,26 @@ def _decode_jwt_payload(token: str) -> dict[str, object]:
 
 
 def verify_supabase_jwt(token: str) -> StaffIdentity:
+    """Verify a Supabase JWT and return the staff identity.
+
+    Parameters
+    ----------
+    token : str
+        Raw JWT string from an ``Authorization: Bearer`` header.
+
+    Returns
+    -------
+    StaffIdentity
+        Authenticated staff user derived from the token ``sub`` claim.
+
+    Raises
+    ------
+    StudyApiError
+        With ``staff_auth_required`` when verification is not configured,
+        ``staff_auth_invalid`` when the token is malformed, wrongly signed,
+        expired, or missing ``sub``, or other staff auth error codes from
+        :func:`_decode_jwt_payload`.
+    """
     payload = _decode_jwt_payload(token)
     sub = payload.get("sub")
     if not isinstance(sub, str) or not sub:
@@ -108,6 +142,29 @@ def _extract_bearer_token(request: Request) -> str | None:
 
 
 def require_staff_identity(request: Request) -> StaffIdentity:
+    """Authenticate a staff request from a bearer JWT.
+
+    Rejects requests that carry a participant capability cookie so staff and
+    participant credentials cannot be mixed on staff routes.
+
+    Parameters
+    ----------
+    request : fastapi.Request
+        Incoming request whose cookies and ``Authorization`` header are
+        inspected.
+
+    Returns
+    -------
+    StaffIdentity
+        Authenticated staff user.
+
+    Raises
+    ------
+    StudyApiError
+        With ``staff_forbidden`` when a participant capability cookie is
+        present, ``staff_auth_required`` when no bearer token is supplied, or
+        staff auth errors from :func:`verify_supabase_jwt`.
+    """
     if request.cookies.get(CAPABILITY_COOKIE_NAME):
         raise StudyApiError(
             status_code=403,
@@ -126,6 +183,19 @@ def require_staff_identity(request: Request) -> StaffIdentity:
 
 
 def require_export_role(role: str) -> None:
+    """Ensure a staff role may perform export actions.
+
+    Parameters
+    ----------
+    role : str
+        Staff membership role to authorize.
+
+    Raises
+    ------
+    StudyApiError
+        With ``staff_forbidden`` when ``role`` is not in
+        :data:`EXPORT_ALLOWED_ROLES`.
+    """
     if role not in EXPORT_ALLOWED_ROLES:
         raise StudyApiError(
             status_code=403,
